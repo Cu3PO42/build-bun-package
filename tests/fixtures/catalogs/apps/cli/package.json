@@ -1,0 +1,16 @@
+{
+  "name": "@example/cli",
+  "version": "1.0.0",
+  "dependencies": {
+    "@example/message": "workspace:*"
+  },
+  "scripts": {
+    "build": "bun build ./index.js --target=bun --external=@example/message --outdir=dist"
+  },
+  "bin": {
+    "workspace-cli": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ]
+}

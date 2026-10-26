@@ -50,6 +50,21 @@ let
     '';
   };
 
+  catalogs = pkgs.buildBunPackage {
+    pname = "bun-catalog-example";
+    version = "1";
+    src = ./fixtures/catalogs;
+    bunDepsHash = "sha256-s318Wt8d+fBK6qijgUNG5sTN5LC0d9Cu6D5/ekVQFXg=";
+    bunWorkspace = "apps/cli";
+    makeCacheWritable = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      cd "$TMPDIR"
+      rm -rf "$NIX_BUILD_TOP/catalogs"
+      test "$("$out/bin/workspace-cli")" = 'catalogs work'
+    '';
+  };
+
   workspace = pkgs.buildBunPackage {
     pname = "bun-workspace-example";
     version = "1.0.0";
@@ -70,7 +85,7 @@ let
   };
 in
 {
-  inherit example workspace;
+  inherit example workspace catalogs;
 
   workspace-installed = pkgs.buildBunPackage {
     pname = "bun-workspace-installed";
@@ -541,8 +556,26 @@ in
       (_: {
         bunRoot = "basic";
         bunFlags = [ "--no-env-file" ];
-        bunFetchFlags = [ "--silent" ];
+        bunFetchFlags = [
+          "--silent"
+          "--config"
+          "config with spaces.toml"
+        ];
+        postPatch = ''
+          touch 'basic/config with spaces.toml'
+        '';
+        preInstall = ''
+          # Standard hooks must run once, not both inline and through runHook.
+          test ! -e "$TMPDIR/fetcher-pre-install-ran"
+          touch "$TMPDIR/fetcher-pre-install-ran"
+        '';
       });
+
+  catalog-dependency-cache = fetchForTest {
+    name = "bun-catalog-deps-${pkgs.stdenv.hostPlatform.system}";
+    src = ./fixtures/catalogs;
+    hash = catalogs.bunDeps.outputHash;
+  };
 
   patched-dependency-cache = fetchForTest {
     name = "bun-patched-deps-${pkgs.stdenv.hostPlatform.system}";

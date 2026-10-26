@@ -1,0 +1,21 @@
+{
+  "name": "catalog-example",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "packages/*",
+      "apps/*"
+    ],
+    "catalog": {
+      "is-odd": "3.0.1"
+    },
+    "catalogs": {
+      "shared": {
+        "is-number": "6.0.0"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./apps/cli/index.js --target=bun --outdir=dist"
+  }
+}
