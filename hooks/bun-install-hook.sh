@@ -10,7 +10,9 @@ bunInstallHook() {
     mkdir -p "$packageOut"
     bun pm pack ${bunPackFlags-} "${bunPackFlagsArray[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
     tar -xzf "$TMPDIR/package.tgz" -C "$packageOut" --strip-components=1 --exclude='package/node_modules' --exclude='package/node_modules/*'
-    if [[ -z ${dontBunPrune-} ]]; then bun prune --production; fi
+    if [[ -z ${dontBunPrune-} ]]; then
+        bun prune --production ${bunPruneFlags-} "${bunPruneFlagsArray[@]}"
+    fi
     if [[ -d node_modules ]]; then cp -R node_modules "$packageOut/node_modules"; fi
     while IFS= read -r entry; do
         binName=$(@jq@/bin/jq -r '.key' <<< "$entry")
