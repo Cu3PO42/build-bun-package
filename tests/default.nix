@@ -280,7 +280,6 @@ in
     bunInstallFlags = [ "--ignore-scripts" ];
     bunBuildScript = "build";
     nativeBuildInputs = [
-      pkgs.bun
       pkgs.bunHooks.bunConfigHook
       pkgs.bunHooks.bunBuildHook
       pkgs.bunHooks.bunInstallHook

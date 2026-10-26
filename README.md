@@ -119,8 +119,9 @@ pkgs.buildBunPackage {
 | `bunConfigHook`, `bunBuildHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
 
 The hooks are also available independently as `pkgs.bunHooks.bunConfigHook`,
-`bunBuildHook`, and `bunInstallHook`. Add Bun and the desired hooks to
+`bunBuildHook`, and `bunInstallHook`. Add the desired hooks to
 `nativeBuildInputs` and provide `bunDeps` when using `stdenv.mkDerivation`.
+Each hook propagates the Bun package it was configured with.
 The config hook runs in `postPatchHooks`, including when `configurePhase` is
 overridden. The build and install hooks register phases only when no phase is
 provided and their opt-out is unset. Each hook enters `bunRoot` and restores the

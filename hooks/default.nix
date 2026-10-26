@@ -14,6 +14,7 @@
   bunConfigHook = makeSetupHook {
     name = "bun-config-hook";
     propagatedBuildInputs = [
+      bun
       nodejs
       nodejs.python
     ]
@@ -26,12 +27,14 @@
   } ./bun-config-hook.sh;
   bunBuildHook = makeSetupHook {
     name = "bun-build-hook";
+    propagatedBuildInputs = [ bun ];
     meta.license = lib.licenses.mit;
   } ./bun-build-hook.sh;
   bunInstallHook = makeSetupHook {
     name = "bun-install-hook";
     meta.license = lib.licenses.mit;
     propagatedBuildInputs = [
+      bun
       makeWrapper
       installShellFiles
     ];
