@@ -123,6 +123,30 @@ in
     doInstallCheck = false;
   });
 
+  lifecycle-shebangs = example.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunInstallFlags = [ ];
+    makeCacheWritable = true;
+    postPatch = ''
+      jq '.scripts.postinstall = "node_modules/is-odd/index.js"' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    preBunInstall = ''
+      script=$(find "$BUN_INSTALL_CACHE_DIR" -type f -path '*/is-odd@*/index.js')
+      test -n "$script"
+      sed -i '1i #!/missing/interpreter/node' "$script"
+      chmod u+x "$script"
+      patchShebangs "$BUN_INSTALL_CACHE_DIR"
+    '';
+    postBunInstall = ''
+      test -x node_modules/is-odd/index.js
+      touch lifecycle-installed
+    '';
+    postInstallCheck = ''
+      test -f lifecycle-installed
+    '';
+  });
+
   trusted-lifecycle = pkgs.buildBunPackage {
     pname = "bun-trusted-lifecycle";
     version = "1";
@@ -378,6 +402,10 @@ in
       alternate = example.overrideAttrs (_: {
         bun = alternateBun;
       });
+      alternateNodejs = pkgs.nodejs_22;
+      alternateNode = example.overrideAttrs (_: {
+        nodejs = alternateNodejs;
+      });
       functional = pkgs.buildBunPackage (final: {
         pname = "functional-bun";
         version = "1";
@@ -388,6 +416,12 @@ in
     in
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
+    assert builtins.elem (toString
+      (pkgs.bunHooks.override { nodejs = alternateNodejs; }).bunConfigHook
+    ) (map toString alternateNode.nativeBuildInputs);
+    assert builtins.elem (toString (pkgs.bunHooks.override { bun = alternateBun; }).bunInstallHook) (
+      map toString alternate.nativeBuildInputs
+    );
     assert changed.bunDeps.bunFlags == [ "--no-env-file" ];
     assert changed.bunDeps.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.drvPath != example.bunDeps.drvPath;
