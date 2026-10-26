@@ -50,6 +50,8 @@ lib.extendMkDerivation {
             selectedHooks.bunInstallHook
         )
       ];
+      # Only source preparation belongs in the fixed-output fetcher. Forwarding
+      # the whole derivation would also run package phases and introduce cycles.
       preparation = builtins.intersectAttrs (lib.genAttrs [
         "src"
         "srcs"

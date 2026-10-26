@@ -65,6 +65,8 @@ when Bun needs to write to the cache. Some lifecycle-enabled installs require
 cache writes even when installed files use `copyfile`. This option copies the
 cache to `$TMPDIR` first.
 
+The archive applies Bun’s publish-file selection (`files`, ignore rules and package metadata); it is not merely a way to copy `node_modules`. The installer copies dependencies separately after pruning.
+
 The default installer prunes dev dependencies after building and testing. Set
 `dontBunPrune = true` to retain them. For a bundled executable or static website,
 override `installPhase` to install only the build output:
@@ -88,15 +90,18 @@ pkgs.buildBunPackage {
 
 | Attribute | Default | Purpose |
 | --- | --- | --- |
+| `bun` | overlay Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunRoot` | `"."` | Project directory relative to the unpacked source root |
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
 | `bunInstallFlags` | `[]` | Extra install arguments, e.g. `[ "--ignore-scripts" ]` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
+| `bunRunFlags` | `[]` | Options before the script name, e.g. `[ "--filter" "./apps/*" ]` |
 | `bunBuildFlags` | `[]` | Arguments passed to the build script |
 | `dontBunBuild` | `false` | Skip the default build script |
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
+| `bunPruneFlags` | `[]` | Extra arguments to `bun prune` |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
 | `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage |
 | `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
@@ -114,10 +119,19 @@ configure phase leaving the shell in `bunRoot` must enter it themselves and
 restore the working directory before the next phase.
 
 Source selection, unpack and patch settings, caller preparation inputs, and
-`env` are forwarded to the dependency fetcher. Add compilers, `pkg-config`,
-Node.js, Python, or other lifecycle script tools through the usual inputs.
+`env` are forwarded to the dependency fetcher. This explicit selection avoids
+passing package build and install phases into the fixed-output fetch. The hook
+flags are derivation attributes; Nix passes list-valued flags as shell arrays.
+Bun commands have different option sets, so use the command-specific flags
+above rather than a single flag applied to every command. Add compilers, `pkg-config`,
+Node.js, Python, or other lifecycle script tools through the usual inputs. Bun
+executes trusted dependency lifecycle scripts during `bun install`, so a
+separate `npm rebuild` would run them again. Native addons may invoke node-gyp:
+provide a compatible Node.js, Python, compiler and local Node headers, and
+configure node-gyp for those headers so it does not download them during the
+sandboxed build. This helper does not configure node-gyp automatically.
 
-For monorepos, fetch and install from the workspace root. Workspace links work
+For monorepos, fetch and install dependencies from the workspace root. Set `bunRunFlags = [ "--filter" "./apps/my-app" ];` to run the build script in a selected workspace (or use Bun’s other filter patterns). Workspace links work
 during the build; use a custom `installPhase` to install the intended workspace
 or bundle. Copying the root's `node_modules` alone cannot preserve links to
 workspace source directories outside that tree. See `tests/fixtures/workspace`.
@@ -153,3 +167,6 @@ those internal naming rules.
 
 The new commands are described in the
 [Bun 1.4.4 release notes](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
+
+For the corresponding npm, Yarn, and pnpm packaging patterns, see the
+[Nixpkgs JavaScript documentation](https://github.com/NixOS/nixpkgs/blob/master/doc/languages-frameworks/javascript.section.md).
