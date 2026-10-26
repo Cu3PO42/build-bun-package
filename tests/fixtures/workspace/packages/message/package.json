@@ -1,0 +1,1 @@
+{ "name": "@example/message", "version": "1.0.0", "main": "index.js", "dependencies": { "is-odd": "3.0.1" } }

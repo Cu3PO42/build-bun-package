@@ -1,0 +1,12 @@
+{
+  "name": "bun-example",
+  "version": "1.0.0",
+  "bin": { "bun-example": "dist/cli.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bun build ./cli.js --target=bun --external=is-odd --outdir=dist",
+    "test": "bun ./dist/cli.js 3"
+  },
+  "dependencies": { "is-odd": "3.0.1" },
+  "devDependencies": { "esbuild": "0.25.0" }
+}

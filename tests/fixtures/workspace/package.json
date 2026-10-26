@@ -1,0 +1,6 @@
+{
+  "name": "workspace-example",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": { "build": "bun build ./apps/cli/index.js --target=bun --outdir=dist" }
+}
