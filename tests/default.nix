@@ -272,6 +272,38 @@ in
     '';
   });
 
+  node-fallback =
+    pkgs.runCommand "bun-node-fallback"
+      {
+        nativeBuildInputs = [ pkgs.bunHooks.bunBuildHook ];
+      }
+      ''
+        test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
+        mkdir -p "$out/bin"
+        cat > "$out/bin/node-script" <<'JS'
+        #!/usr/bin/env node
+        console.log(process.versions.bun);
+        JS
+        chmod +x "$out/bin/node-script"
+        patchShebangs "$out/bin"
+        grep -F '${pkgs.bunHooks.bunNodeShim}/bin/node' "$out/bin/node-script"
+        test "$("$out/bin/node-script")" = '${pkgs.bun.version}'
+      '';
+
+  real-node-precedence =
+    pkgs.runCommand "bun-real-node-precedence"
+      {
+        nativeBuildInputs = [
+          pkgs.bunHooks.bunBuildHook
+          pkgs.nodejs
+        ];
+      }
+      ''
+        test "$(command -v node)" = '${pkgs.nodejs}/bin/node'
+        node -e 'if (process.versions.bun) process.exit(1)'
+        touch "$out"
+      '';
+
   independent-hooks = pkgs.stdenv.mkDerivation {
     pname = "bun-independent-hooks";
     version = "1";
