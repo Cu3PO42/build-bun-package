@@ -58,28 +58,31 @@ lib.extendMkDerivation {
       ];
       # Only source preparation belongs in the fixed-output fetcher. Forwarding
       # the whole derivation would also run package phases and introduce cycles.
-      preparation = builtins.intersectAttrs (lib.genAttrs [
-        "src"
-        "srcs"
-        "sourceRoot"
-        "setSourceRoot"
-        "unpackPhase"
-        "preUnpack"
-        "postUnpack"
-        "preUnpackHooks"
-        "postUnpackHooks"
-        "patches"
-        "patchFlags"
-        "prePatch"
-        "postPatch"
-        "prePatchHooks"
-        "postPatchHooks"
-        "buildInputs"
-        "env"
-        "bunRoot"
-        "bunFlags"
-        "bunFetchFlags"
-      ] (_: null)) finalAttrs;
+      preparation = lib.filterAttrs (
+        name: _:
+        builtins.elem name [
+          "src"
+          "srcs"
+          "sourceRoot"
+          "setSourceRoot"
+          "unpackPhase"
+          "preUnpack"
+          "postUnpack"
+          "preUnpackHooks"
+          "postUnpackHooks"
+          "patches"
+          "patchFlags"
+          "prePatch"
+          "postPatch"
+          "prePatchHooks"
+          "postPatchHooks"
+          "buildInputs"
+          "env"
+          "bunRoot"
+          "bunFlags"
+          "bunFetchFlags"
+        ]
+      ) finalAttrs;
       deps =
         if bunDeps != null then
           bunDeps
