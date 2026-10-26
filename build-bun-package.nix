@@ -6,6 +6,9 @@
   bunHooks,
 }:
 
+let
+  defaultBun = bun;
+in
 lib.extendMkDerivation {
   constructDrv = stdenv.mkDerivation;
   extendDrvArgs =
@@ -21,25 +24,30 @@ lib.extendMkDerivation {
       ...
     }@args:
     let
+      selectedBun =
+        assert lib.assertMsg (lib.versionAtLeast finalAttrs.bun.version "1.4.4")
+          "buildBunPackage requires Bun >= 1.4.4";
+        finalAttrs.bun;
+      selectedHooks = bunHooks.override { bun = selectedBun; };
       internalInputs = [
-        bun
+        selectedBun
         (
           if (finalAttrs.bunConfigHook or bunConfigHook) != null then
             (finalAttrs.bunConfigHook or bunConfigHook)
           else
-            bunHooks.bunConfigHook
+            selectedHooks.bunConfigHook
         )
         (
           if (finalAttrs.bunBuildHook or bunBuildHook) != null then
             (finalAttrs.bunBuildHook or bunBuildHook)
           else
-            bunHooks.bunBuildHook
+            selectedHooks.bunBuildHook
         )
         (
           if (finalAttrs.bunInstallHook or bunInstallHook) != null then
             (finalAttrs.bunInstallHook or bunInstallHook)
           else
-            bunHooks.bunInstallHook
+            selectedHooks.bunInstallHook
         )
       ];
       preparation = builtins.intersectAttrs (lib.genAttrs [
@@ -67,7 +75,7 @@ lib.extendMkDerivation {
         if bunDeps != null then
           bunDeps
         else
-          fetchBunDeps (
+          (fetchBunDeps.override { bun = selectedBun; }) (
             preparation
             // {
               name = "${finalAttrs.name or "${finalAttrs.pname}-${finalAttrs.version}"}-bun-deps";
@@ -78,16 +86,15 @@ lib.extendMkDerivation {
             }
           );
     in
-    assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4")
-      "buildBunPackage requires Bun >= 1.4.4";
     {
+      bun = args.bun or defaultBun;
       bunDeps = deps;
       bunBuildScript = args.bunBuildScript or "build";
       nativeBuildInputs = nativeBuildInputs ++ internalInputs;
       strictDeps = args.strictDeps or true;
       dontStrip = args.dontStrip or true;
       meta = (args.meta or { }) // {
-        platforms = args.meta.platforms or bun.meta.platforms;
+        platforms = args.meta.platforms or selectedBun.meta.platforms;
       };
     };
 }

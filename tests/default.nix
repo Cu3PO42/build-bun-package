@@ -284,6 +284,8 @@ in
       reused = example.overrideAttrs (_: {
         bunDeps = example.bunDeps;
       });
+      alternateBun = pkgs.bun.overrideAttrs (_: { version = "1.4.5"; __intentionallyOverridingVersion = true; });
+      alternate = example.overrideAttrs (_: { bun = alternateBun; });
       functional = pkgs.buildBunPackage (final: {
         pname = "functional-bun";
         version = "1";
@@ -292,6 +294,8 @@ in
         bunBuildScript = "build";
       });
     in
+    assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
+    assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
     assert changed.bunDeps.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.drvPath != example.bunDeps.drvPath;
     assert prepared.bunDeps.src == ./fixtures;
