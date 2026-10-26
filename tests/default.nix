@@ -474,6 +474,14 @@ in
       rebuilt = example.overrideAttrs (_: {
         bun = rebuiltBun;
       });
+      overriddenHash =
+        (pkgs.fetchBunDeps {
+          src = ./fixtures/basic;
+          hash = example.bunDeps.outputHash;
+        }).overrideAttrs
+          (_: {
+            hash = pkgs.lib.fakeHash;
+          });
       alternateNodejs = pkgs.nodejs_22;
       alternateNode = example.overrideAttrs (_: {
         nodejs = alternateNodejs;
@@ -497,6 +505,7 @@ in
     assert builtins.elem (toString (pkgs.bunHooks.override { bun = alternateBun; }).bunInstallHook) (
       map toString alternate.nativeBuildInputs
     );
+    assert overriddenHash.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.bunFlags == [ "--no-env-file" ];
     assert changed.bunDeps.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.drvPath != example.bunDeps.drvPath;

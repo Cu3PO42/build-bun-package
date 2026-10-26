@@ -59,8 +59,8 @@ stdenvNoCC.mkDerivation (
         cp "$lockfile" "$out/.nix-bun/$lockfile"
         runHook postInstall
       '';
-    outputHash = hash;
-    outputHashAlgo = if hash == "" then "sha256" else null;
+    outputHash = finalAttrs.hash or hash;
+    outputHashAlgo = if (finalAttrs.hash or hash) == "" then "sha256" else null;
     outputHashMode = "recursive";
     dontFixup = true;
     impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ (args.impureEnvVars or [ ]);
