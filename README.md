@@ -60,8 +60,10 @@ with `lib.fakeHash`, even when the lockfile has not changed. A reused `bunDeps`
 cache must contain matching version metadata and the same lockfile.
 
 By default Bun reads the store cache directly. Set `makeCacheWritable = true`
-when dependency patches or trusted lifecycle scripts modify existing package
-files or require cache writes. This copies the cache to `$TMPDIR` first.
+when dependency patches or lifecycle scripts modify existing package files or
+when Bun needs to write to the cache. Some lifecycle-enabled installs require
+cache writes even when installed files use `copyfile`. This option copies the
+cache to `$TMPDIR` first.
 
 The default installer prunes dev dependencies after building and testing. Set
 `dontBunPrune = true` to retain them. For a bundled executable or static website,
@@ -123,10 +125,13 @@ Cross compilation is not supported by this initial implementation.
 
 ## Scope and checks
 
-The checks exercise direct and writable caches, independent hooks, a custom
-configure phase, nested roots, workspace links, wrappers, pruning, and cache
-metadata. Distinct cache output names force independent platform fetches. Run
-`nix flake check` on each supported system to verify the caches and builds.
+The checks exercise direct and writable caches, lifecycle mutations, trusted
+scripts, patched dependencies, independent and replacement hooks, custom phases,
+nested roots, workspace links, scoped wrappers and manuals, pruning, and cache
+validation. They also cover a binary lockfile and a fixture combining a pinned
+Git dependency, an HTTP tarball, and a non-default registry. Distinct cache
+output names force independent platform fetches. Run `nix flake check` on each
+supported system to verify the caches and builds.
 
 The ordinary build must run with Nix sandboxing enabled to enforce network
 isolation for arbitrary lifecycle/build scripts. Bun's `--offline` governs the
@@ -134,9 +139,10 @@ package installation itself; it does not prevent a project's scripts from
 performing their own downloads. Native dependencies that download extra assets
 in scripts need those assets supplied separately.
 
-Git dependencies, private registries, and patched dependencies have not yet been
-covered by the integration fixtures. Authentication configuration is not exposed
-as a dedicated option.
+The Git, tarball, and registry fixture covers one public GitHub repository, one
+npm tarball, and the public Yarn registry. Private registry authentication and
+other Git protocols are not covered; authentication is not exposed as a
+dedicated option.
 
 A hash-free `importBunLock` is left for a follow-up. The intended approach is to
 parse the text lockfile, fetch individual tarballs with their recorded integrity

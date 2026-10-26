@@ -1,0 +1,33 @@
+diff --git a/index.js b/index.js
+index 79d1f22a8e7a27efb8841bb83cb682ea1ff3a59c..904ff2de77819cfb6245ef25d96601a170f3f287 100644
+--- a/index.js
++++ b/index.js
+@@ -23,3 +23,5 @@ module.exports = function isOdd(value) {
+   return (n % 2) === 1;
+ };
+ 
++
++// patched by fixture
+diff --git a/package.json b/package.json
+index 8ed23d06552a1f5d101f6f0428305882d8f9590c..b5431a253bfbca523d3c04ef5b195b7850b4873d 100644
+--- a/package.json
++++ b/package.json
+@@ -8,7 +8,7 @@
+     "Dmitry Semigradsky (http://brainstorage.me/semigradsky)",
+     "DYM (https://dym.sh)",
+     "Jon Schlinkert (http://twitter.com/jonschlinkert)",
+-    "Rouven Weßling (www.rouvenwessling.de)"
++    "Rouven We\u00dfling (www.rouvenwessling.de)"
+   ],
+   "repository": "jonschlinkert/is-odd",
+   "bugs": {
+@@ -23,7 +23,8 @@
+     "node": ">=4"
+   },
+   "scripts": {
+-    "test": "mocha"
++    "test": "mocha",
++    "install": "bun -e \"require('fs').appendFileSync('index.js', '\\n// trusted dependency script\\n')\""
+   },
+   "dependencies": {
+     "is-number": "^6.0.0"

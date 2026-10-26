@@ -1,0 +1,9 @@
+{
+  "name": "bun-source-fixture",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-number": "git+https://github.com/jonschlinkert/is-number.git#98e8ff1da1a89f93d1397a24d7413ed15421c139",
+    "is-odd": "https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz",
+    "is-even": "1.0.0"
+  }
+}

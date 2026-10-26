@@ -22,7 +22,10 @@ bunConfigHook() {
         cp -R "$bunDeps" "$BUN_INSTALL_CACHE_DIR"
         chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
     fi
-    bun install --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"
+    if ! bun install --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"; then
+        echo 'bunConfigHook: offline install failed; check cache contents and lockfile, or try makeCacheWritable = true' >&2
+        exit 1
+    fi
     if [[ -d node_modules ]]; then
         chmod -R u+w node_modules
         patchShebangs node_modules
