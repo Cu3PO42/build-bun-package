@@ -101,14 +101,72 @@ unnecessary here.
 
 ## Validation and remaining limits
 
-Validation on `aarch64-darwin` includes the flake checks, real native compilation
-and loading, source-independent workspace execution, and dependency-cache
-rebuilds. The registry cache and the Git/tarball/custom-registry cache reproduced
-their existing hashes. A fresh native-addon build also passed with
-`--option sandbox true` and an unusable Node-header download URL. Linux systems
-were evaluated, not built on this machine; cross compilation remains unsupported.
+Validation includes builds on `aarch64-darwin`, `aarch64-linux`, and
+`x86_64-linux`: 37 checks per system, 111 total. Both Linux suites ran through
+the configured `ssh://nix-builder`,
+whose sandbox setting is `relaxed`; these ordinary derivations do not request a
+sandbox exemption. Native compilation/loading, source-independent workspace
+execution, catalogs, JSONC, and dependency-cache checks run on all three systems.
+The registry and Git/tarball/custom-registry caches reproduced their existing
+hashes. The registry and Git/tarball caches also passed forced `nix-store
+--realise --check` rebuilds directly on the Linux builder for both architectures
+(four additional rebuild checks). A fresh Darwin native-addon build also passed
+with `--option sandbox true`
+and an unusable Node-header download URL. Cross compilation remains unsupported.
+
+`nix flake check --all-systems` evaluates other systems but does not build their
+checks on this host. To build every supported system's checks, including through
+configured remote builders, use:
+
+```sh
+nix build --no-link --keep-going --impure --expr '
+  let flake = builtins.getFlake (toString ./.);
+  in builtins.concatLists (map
+    (system: builtins.attrValues flake.checks.${system})
+    (builtins.attrNames flake.checks))
+'
+```
 
 During some native builds, the pinned Nixpkgs `audit-tmpdir` classifier subprocess
 printed segmentation-fault diagnostics without failing the derivation. Native
 runtime checks passed, as did the separate sandboxed build. Those checks do not
 establish that the upstream audit classifier completed successfully.
+
+## Follow-up: Nixpkgs PR #376299
+
+Read [PR #376299](https://github.com/NixOS/nixpkgs/pull/376299) at head
+`e920ea0f21805093691a9262a3ce8c0950cd6e05`, including all 52 available inline
+threads (112 comments, including resolved/outdated threads), the 37 conversation
+comments, and the submitted review summaries.
+
+The PR has evolved beyond its original `bun install` cache fetcher. Its current
+[Rust implementation](https://github.com/eveeifyeve/nixpkgs/blob/e920ea0f21805093691a9262a3ce8c0950cd6e05/pkgs/by-name/bu/bun/hooks/src/main.rs)
+parses lockfiles, verifies tarballs, synthesizes registry metadata, and contains
+HTTP-serving helpers. That is a different approach from fetching Bun's native
+cache with `bun pm fetch`. The draft is not a demonstrated replacement for the
+tested implementation here; in particular, its config hook still has archive
+extraction/cache-copying code from the earlier approach. The review concerns
+are useful independently of which fetching approach is chosen.
+
+| Review concern | Resolution here |
+| --- | --- |
+| [Bun changes can be hidden by substituted FODs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2754501190) | Fixed: output names include Bun's version and a hash of its derivation, so changing Bun, even without changing its version, forces a new fetch. Evaluation checks cover both cases. This trades cross-platform output-path sharing for independent fetching with each tool derivation; the content hashes remain platform-independent. Explicitly supplying `bunDeps` remains an intentional caller-selected reuse. |
+| [Changes to fetching must actually be tested](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3941692200) | The cache checks now use `testers.invalidateFetcherByDrvHash`, so changed derivation inputs cannot pass merely by reusing a substituted output with the expected hash. Changing the serialized cache format still requires updating the format marker and expected hashes. |
+| [Absolute symlinks](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2613671110) and [timestamped `.npm` manifests](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2751745200) | Internal absolute cache aliases are normalized. Fresh cache checks on every platform reject absolute links, top-level `.npm` manifests, and a materialized `node_modules`. The exercised locked fetches do not produce the timestamped manifests, so binary-offset timestamp edits are unnecessary. This establishes the fixture coverage, not every possible project/flag combination. |
+| [Nondeterministic peer `.bin` links](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-4369911188) | `bun pm fetch` does not create `node_modules`, so those installation artifacts cannot enter the FOD. This avoids the reported source of dependency-cache hash variation. It does not establish that all ordinary Bun installations are reproducible; the reported browserslist dependency graph is not one of our fixtures. |
+| [Fetch every platform](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2836378720) | Already done with `--os '*' --cpu '*' --libc '*'`, including optional packages for other operating systems. No maintained list of preferred platforms or extra platform-selection API is needed. Independent Linux/Darwin fetches validate the same recorded content hashes. |
+| [JSONC parsing](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929315960) and [catalog resolution](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3637361575) | Bun parses its lockfile; jq only reads ordinary package manifests. Added a fixture with explicit JSONC comments, trailing commas, default and named catalogs, and a workspace CLI that runs after source removal. Binary lockfile coverage also remains. |
+| [Workspace installation](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2752943080) and [shared desktop/CLI dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2836138230) | Fetching covers the complete workspace lockfile. Selecting a build member does not restrict that cache or drop other workspace layouts during installation. Consumers can share `bunDeps` and perform separate installs; there is no need to share mutable, platform-specific `node_modules` between derivations. No claim is made about building opencode or its desktop package. |
+| [Hash mapping, naming, and flag API mismatches](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-4463917655) | `hash` maps to an actual recursive fixed-output hash, including after `overrideAttrs`. Added an evaluation regression for the override. Fetch and install flags have distinct documented names. `name` is a base name with an added Bun identity suffix; neither fetching nor consumption depends on an archive basename. |
+| [Overridable inputs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929994310) and [derivation extension](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3939220032) | `buildBunPackage` already uses `lib.extendMkDerivation`. The smaller standalone fetcher retains `mkDerivation` with `finalAttrs`, as the pinned npm fetcher does, and now honors public hash/root/flag overrides. No additional constructor layer is needed for the tested API. |
+| [Structured flags](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838503828) | Hooks use stdenv `concatTo` and have a structured-array regression with spaces and literal glob characters. The fetcher preserves its Nix flag lists through explicit escaping of `finalAttrs`; its regression now actually uses a config filename containing spaces. This also supports unstructured callers. |
+| [Hook placement](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929315598), [duplicate hook execution](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838503397), and [commands versus arguments](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2655604648) | Config registration stays in `postPatchHooks`, matching the pinned npm hook and working with overridden configure phases. Shell hooks are invoked through `runHook`, not inlined as well. The fetcher regression asserts its `preInstall` runs once. Documentation uses an executable cache-patching command for `preBunInstall`, with flags in flag attributes. |
+| [Required hook dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2793130104) | Each setup hook now propagates its selected Bun. The standalone-hook test omits an explicit Bun input. The installer retains `installShellFiles` and `makeWrapper`; native config tools and pinned absolute jq references remain. |
+| [Cache compression](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929997815), [archive tradeoffs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2837704284), and [duplicate unpack/copy work](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838978045) | Retain a recursively hashed directory. This avoids an additional compression/extraction pass, allows store deduplication, and uses the cache directly unless one writable copy is requested. Nix binary-cache transfers can compress NARs separately. The package-file archive used by the installer serves publication-file selection and is unrelated to dependency-cache serialization. |
+| [Keep the public API small](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838504530) | No separate OS/CPU lists, hash-algorithm switches, or legacy hash aliases were added. SHA-256 is the default, and an explicit SRI hash carries its own algorithm. `strictDeps` defaults to true. Standard derivation phase overrides remain available; configurable command flags are shared with the hooks rather than invented as fetcher-only aliases. |
+| [Updater integration](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2793137442), [helper placement](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r3825776266), and [separate commits](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-2611626393) | The documented update flow remains `lib.fakeHash` and rebuilding `bunDeps`; automatic nix-update support has not been validated. An upstream submission should place these helpers under `pkgs/build-support/node`; the standalone overlay does not need that directory reshuffle. Follow-up changes have separate commits. |
+
+The remaining resolved spelling, formatting, and unrelated package-conversion
+threads do not require functional changes here. Native lifecycle execution
+intentionally differs from the draft hook's unconditional `--ignore-scripts`:
+the trusted/untrusted and node-gyp checks above verify the behavior we retain.

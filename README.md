@@ -192,12 +192,13 @@ compilation is not supported.
 The checks exercise direct and writable caches, lifecycle mutations, trusted
 scripts, native Node-API addons (implicit and explicit node-gyp builds),
 patched dependencies, independent and replacement hooks, custom phases,
-nested roots, installed workspaces with both hoisted and isolated linkers,
-scoped wrappers and manuals, structured flag arrays, pruning, and cache
-validation. They also cover a binary lockfile and a fixture combining a pinned
+nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with
+both hoisted and isolated linkers, scoped wrappers and manuals, structured flag
+arrays, pruning, and cache validation. They also cover a binary lockfile and a fixture combining a pinned
 Git dependency, an HTTP tarball, and a non-default registry. Distinct cache
-output names force independent platform fetches. Run `nix flake check` on each
-supported system to verify the caches and builds.
+output names and derivation salts force independent platform fetches when
+fetcher inputs change. Run `nix flake check` on each supported system to verify
+the caches and builds, or use the remote-builder command in [REVIEW.md](./REVIEW.md).
 
 The ordinary build must run with Nix sandboxing enabled to enforce network
 isolation for arbitrary lifecycle/build scripts. Bun's `--offline` governs the
