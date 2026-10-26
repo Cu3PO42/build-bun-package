@@ -285,8 +285,13 @@ in
       reused = example.overrideAttrs (_: {
         bunDeps = example.bunDeps;
       });
-      alternateBun = pkgs.bun.overrideAttrs (_: { version = "1.4.5"; __intentionallyOverridingVersion = true; });
-      alternate = example.overrideAttrs (_: { bun = alternateBun; });
+      alternateBun = pkgs.bun.overrideAttrs (_: {
+        version = "1.4.5";
+        __intentionallyOverridingVersion = true;
+      });
+      alternate = example.overrideAttrs (_: {
+        bun = alternateBun;
+      });
       functional = pkgs.buildBunPackage (final: {
         pname = "functional-bun";
         version = "1";
