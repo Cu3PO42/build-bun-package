@@ -1,6 +1,8 @@
 # shellcheck shell=bash
 bunInstallHook() {
+    echo "Executing bunInstallHook"
     pushd "${bunRoot:-.}" >/dev/null
+
     runHook preInstall
     local packageName packageOut binName binPath entry
     packageName=$(@jq@/bin/jq -er '.name' package.json)
@@ -21,7 +23,9 @@ bunInstallHook() {
     done < <(@jq@/bin/jq -r 'if (.man | type) == "string" then .man elif (.man | type) == "array" then .man[] else empty end' package.json)
     runHook postInstall
     popd >/dev/null
+    echo "Finished bunInstallHook"
 }
+
 if [[ -z ${dontBunInstall-} && -z ${installPhase-} ]]; then
     installPhase=bunInstallHook
 fi
