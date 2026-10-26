@@ -20,6 +20,7 @@ let
     version = "1.0.0";
     src = ./fixtures/workspace;
     bunDepsHash = "sha256-a/YgadTQr130SaPzXwbNMC2Eqwak0VRUboCi/OFcARY=";
+    bunRunFlags = [ "--silent" ];
     installPhase = ''
       runHook preInstall
       mkdir -p "$out/share"

@@ -9,7 +9,7 @@ bunBuildHook() {
         exit 1
     fi
 
-    bun run "$bunBuildScript" ${bunBuildFlags-} "${bunBuildFlagsArray[@]}"
+    bun run ${bunRunFlags-} "${bunRunFlagsArray[@]}" "$bunBuildScript" ${bunBuildFlags-} "${bunBuildFlagsArray[@]}"
     runHook postBuild
     popd >/dev/null
     echo "Finished bunBuildHook"
