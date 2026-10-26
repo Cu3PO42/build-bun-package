@@ -33,6 +33,7 @@ bunInstallHook() {
     packageName=$(@jq@/bin/jq -er '.name' package.json)
     packageOut="$out/lib/node_modules/$packageName"
     mkdir -p "$packageOut"
+
     bun pm pack ${bunPackFlags-} "${bunPackFlagsArray[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
     tar -xzf "$TMPDIR/package.tgz" -C "$packageOut" --strip-components=1 --exclude='package/node_modules' --exclude='package/node_modules/*'
 
