@@ -29,7 +29,7 @@ let
     makeCacheWritable = true;
     nativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
-      jq --arg script "bun -e \"require('fs').appendFileSync('node_modules/is-odd/index.js', '\\n// lifecycle mutation\\n')\"" '.scripts.postinstall = $script' package.json > package.json.new
+      jq --arg script "node -e \"if (!process.versions.bun) process.exit(1); require('fs').appendFileSync('node_modules/is-odd/index.js', '\\n// lifecycle mutation\\n')\"" '.scripts.postinstall = $script' package.json > package.json.new
       mv package.json.new package.json
     '';
     doInstallCheck = true;
@@ -39,8 +39,14 @@ let
     pname = "bun-native-example";
     version = "1";
     src = ./fixtures/native;
+    nativeBuildInputs = [ pkgs.bunNodeGypHook ];
     makeCacheWritable = true;
     bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
+    # Both node-gyp and ordinary node commands must run with Bun.
+    preBuild = ''
+      test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
+      test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
+    '';
     # With local headers, even an unusable download URL must work.
     env.npm_config_disturl = "http://127.0.0.1:9";
     doInstallCheck = true;
@@ -132,6 +138,42 @@ in
   inherit lifecycle-writable;
 
   inherit native-addon;
+
+  native-node-compatibility =
+    pkgs.runCommand "bun-native-node-compatibility"
+      {
+        nativeBuildInputs = [ pkgs.nodejs ];
+      }
+      ''
+        # Node is a consumer of the finished addon, not part of its build toolchain.
+        node -e 'if (process.versions.bun) process.exit(1)'
+        test "$(node -p "require('${native-addon}/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
+        touch "$out"
+      '';
+
+  node-free-closures =
+    let
+      pure = pkgs.closureInfo {
+        rootPaths = [ example ];
+      };
+      native = pkgs.closureInfo {
+        rootPaths = [
+          native-addon
+          pkgs.bunNodeGyp
+        ];
+      };
+    in
+    pkgs.runCommand "bun-node-free-closures" { } ''
+      if grep -E -- '-(nodejs(-slim)?|npm)-[0-9]' ${pure}/store-paths ${native}/store-paths; then
+        echo 'Bun runtime closures unexpectedly depend on Node.js or npm' >&2
+        exit 1
+      fi
+      if grep -E -- '-(bun-node-gyp|node-gyp)-[0-9]' ${pure}/store-paths; then
+        echo 'Ordinary Bun projects unexpectedly depend on node-gyp' >&2
+        exit 1
+      fi
+      touch "$out"
+    '';
 
   native-explicit-install = native-addon.overrideAttrs (old: {
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
@@ -530,9 +572,8 @@ in
     assert rebuiltBun.version == pkgs.bun.version;
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
-    assert builtins.elem (toString
-      (pkgs.bunHooks.override { nodejs = alternateNodejs; }).bunConfigHook
-    ) (map toString alternateNode.nativeBuildInputs);
+    assert builtins.elem (toString alternateNodejs) (map toString alternateNode.nativeBuildInputs);
+    assert example.nodejs == null;
     assert builtins.elem (toString (pkgs.bunHooks.override { bun = alternateBun; }).bunInstallHook) (
       map toString alternate.nativeBuildInputs
     );
@@ -610,6 +651,12 @@ in
           touch "$TMPDIR/fetcher-pre-install-ran"
         '';
       });
+
+  node-gyp-dependency-cache = fetchForTest {
+    name = "bun-node-gyp-deps-${pkgs.stdenv.hostPlatform.system}";
+    src = ../node-gyp;
+    hash = pkgs.bunNodeGyp.bunDeps.outputHash;
+  };
 
   catalog-dependency-cache = fetchForTest {
     name = "bun-catalog-deps-${pkgs.stdenv.hostPlatform.system}";

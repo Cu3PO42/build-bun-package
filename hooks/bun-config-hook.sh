@@ -34,11 +34,6 @@ bunConfigHook() {
     export BUN_CONFIG_NO_CLEAR_TERMINAL=1
     # The global store creates links outside node_modules that cannot be shipped.
     export BUN_INSTALL_GLOBAL_STORE=0
-    # Bun's node-gyp shim otherwise runs `bun x node-gyp`, which downloads a tool.
-    # Nixpkgs' bundled node-gyp also carries the Darwin build-tool patches.
-    export npm_config_node_gyp="@nodeGyp@"
-    # Use headers matching the supplied Node.js; node-gyp must not fetch them.
-    export npm_config_nodedir="@nodeSrc@"
     mkdir -p "$HOME"
     # Read the hash-verified cache directly unless installation needs to mutate it.
     export BUN_INSTALL_CACHE_DIR="$bunDeps"

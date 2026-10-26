@@ -18,6 +18,9 @@
         bun = final.callPackage ./bun.nix { };
         fetchBunDeps = final.callPackage ./fetch-bun-deps.nix { };
         bunHooks = final.callPackage ./hooks { };
+        bunNodeGyp = final.callPackage ./node-gyp.nix { };
+        bunNodeHeaders = final.callPackage ./node-headers.nix { };
+        bunNodeGypHook = final.callPackage ./hooks/node-gyp.nix { };
         buildBunPackage = final.callPackage ./build-bun-package.nix { };
       };
       legacyPackages = forAllSystems (

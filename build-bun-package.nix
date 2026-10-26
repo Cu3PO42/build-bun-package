@@ -2,14 +2,12 @@
   lib,
   stdenv,
   bun,
-  nodejs,
   fetchBunDeps,
   bunHooks,
 }:
 
 let
   defaultBun = bun;
-  defaultNodejs = nodejs;
 in
 lib.extendMkDerivation {
   constructDrv = stdenv.mkDerivation;
@@ -23,6 +21,7 @@ lib.extendMkDerivation {
       bunBuildHook ? null,
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
+      nodejs ? null,
       bunWorkspace ? null,
       bunFlags ? [ ],
       bunFetchFlags ? [ ],
@@ -39,7 +38,6 @@ lib.extendMkDerivation {
         finalAttrs.bun;
       selectedHooks = bunHooks.override {
         bun = selectedBun;
-        nodejs = finalAttrs.nodejs;
       };
       internalInputs = [
         selectedBun
@@ -106,6 +104,7 @@ lib.extendMkDerivation {
     in
     {
       inherit
+        nodejs
         bunWorkspace
         bunFlags
         bunFetchFlags
@@ -115,10 +114,10 @@ lib.extendMkDerivation {
         bunPruneFlags
         ;
       bun = args.bun or defaultBun;
-      nodejs = args.nodejs or defaultNodejs;
       bunDeps = deps;
       bunBuildScript = args.bunBuildScript or "build";
-      nativeBuildInputs = nativeBuildInputs ++ internalInputs;
+      nativeBuildInputs =
+        nativeBuildInputs ++ internalInputs ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs;
       strictDeps = args.strictDeps or true;
       dontStrip = args.dontStrip or true;
       meta = (args.meta or { }) // {
