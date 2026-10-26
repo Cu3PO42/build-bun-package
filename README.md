@@ -41,30 +41,27 @@ replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
 
 ## Build and installation
 
-1. `fetchBunDeps` unpacks and patches the source, runs
-   `bun pm fetch --os '*' --cpu '*' --libc '*'`, then `bun pm cache pack`.
-   It restores the pack into a clean cache, makes index symlinks relative, and
-   hashes the directory using Nix's recursive SHA-256 hash. No dependency
-   lifecycle scripts run during fetching. Fetching all platforms lets the same
-   hash work on Darwin and Linux.
-2. The package build copies that directory into a private writable cache and runs
-   `bun install --offline --frozen-lockfile`. Lifecycle scripts run here under
-   Bun's usual trust rules, with the build's tools and sandbox restrictions.
-3. `bun run build` runs by default.
-4. `bun pm pack --ignore-scripts` selects the package's published files, and
-   `bun prune --production` removes dev dependencies. The package files and
-   remaining `node_modules` are installed under `$out/lib/node_modules/<package-name>`.
-   Each `package.json` bin gets a wrapper in `$out/bin` that invokes Bun.
+1. `fetchBunDeps` unpacks and patches the source and runs `bun pm fetch`
+   for all platforms directly into a recursively hashed cache. The cache contains
+   `.nix-bun/format-version` and a byte-for-byte copy of the selected lockfile.
+   No dependency lifecycle scripts run during fetching.
+2. The config hook validates the cache and lockfile, then runs `bun install
+   --offline --frozen-lockfile --backend copyfile`. Bun runs lifecycle scripts
+   according to its trust rules during this install. Installed dependencies are
+   made writable and their shebangs patched. `BUN_INSTALL_GLOBAL_STORE=0` keeps
+   dependencies in the package tree.
+3. The build hook runs `bun run build` by default.
+4. The install hook uses `bun pm pack --ignore-scripts` to select package files,
+   excludes packed dependencies, and installs the pruned `node_modules` once.
+   Bins receive Bun wrappers and declared manual pages are installed.
 
-Bun packs files in filesystem traversal order, so pack bytes differ between
-Darwin and Linux even when package contents match. The pack/unpack round trip
-selects just the lockfile entries, and Nix's recursive directory hash removes
-file ordering and timestamp differences. Relative index symlinks keep the cache
-relocatable. Cache format changes in future Bun versions may require a new hash.
+The cache format changed: **existing `bunDepsHash` values must be regenerated**
+with `lib.fakeHash`, even when the lockfile has not changed. A reused `bunDeps`
+cache must contain matching version metadata and the same lockfile.
 
-Integration checks, including native optional dependencies and installed CLI
-wrappers, pass on aarch64-darwin, aarch64-linux, and x86_64-linux. Linux builds run
-on the configured remote builder.
+By default Bun reads the store cache directly. Set `makeCacheWritable = true`
+when dependency patches or trusted lifecycle scripts modify existing package
+files or require cache writes. This copies the cache to `$TMPDIR` first.
 
 The default installer prunes dev dependencies after building and testing. Set
 `dontBunPrune = true` to retain them. For a bundled executable or static website,
@@ -99,14 +96,24 @@ pkgs.buildBunPackage {
 | `dontBunBuild` | `false` | Skip the default build script |
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
+| `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage |
+| `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
+| `dontBunInstall` | `false` | Disable the default install phase |
+| `bunConfigHook`, `bunBuildHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
 
-Normal stdenv phases and hooks work, including `preBuild`, `postInstall`,
-`buildPhase`, `installPhase`, `doCheck`, and `checkPhase`. An overridden phase
-must call its own pre/post hooks. Overriding `configurePhase` also replaces
-cache setup and dependency installation. `sourceRoot`, `patches`, `prePatch`,
-and `postPatch` are shared with the dependency fetcher so both stages see the
-same manifests, lockfiles, and patches. Add compilers, `pkg-config`, Node.js,
-Python, or other lifecycle script tools through the usual build inputs.
+The hooks are also available independently as `pkgs.bunHooks.bunConfigHook`,
+`bunBuildHook`, and `bunInstallHook`. Add Bun and the desired hooks to
+`nativeBuildInputs` and provide `bunDeps` when using `stdenv.mkDerivation`.
+The config hook runs in `postPatchHooks`, including when `configurePhase` is
+overridden. The build and install hooks register phases only when no phase is
+provided and their opt-out is unset. Each hook enters `bunRoot` and restores the
+working directory afterward. Custom phases that previously relied on the
+configure phase leaving the shell in `bunRoot` must enter it themselves and
+restore the working directory before the next phase.
+
+Source selection, unpack and patch settings, caller preparation inputs, and
+`env` are forwarded to the dependency fetcher. Add compilers, `pkg-config`,
+Node.js, Python, or other lifecycle script tools through the usual inputs.
 
 For monorepos, fetch and install from the workspace root. Workspace links work
 during the build; use a custom `installPhase` to install the intended workspace
@@ -116,26 +123,10 @@ Cross compilation is not supported by this initial implementation.
 
 ## Scope and checks
 
-The checks cover a CLI with transitive runtime dependencies and a native optional
-dev dependency, production pruning and its opt-out, package file selection,
-installed wrappers, a nested project,
-hooks, workspace links, rejection of an empty offline cache, and rejection of a
-changed manifest with a frozen lockfile. Each platform also fetches its own
-cache under a distinct output name to verify that the hash is shared.
-To check cache reproducibility:
-
-```sh
-nix build path:.#example.bunDeps --no-link --rebuild -L
-nix flake check path:. --all-systems --no-build
-```
-
-`nix flake check --all-systems` evaluates all systems but only builds checks for
-the current system. With a configured Linux builder, run all Linux checks with:
-
-```sh
-nix build --no-link -L \
-  path:.#checks.{aarch64-linux,x86_64-linux}.{example,nested,workspace,keep-dev-dependencies,offline-failures,dependency-cache}
-```
+The checks exercise direct and writable caches, independent hooks, a custom
+configure phase, nested roots, workspace links, wrappers, pruning, and cache
+metadata. Distinct cache output names force independent platform fetches. Run
+`nix flake check` on each supported system to verify the caches and builds.
 
 The ordinary build must run with Nix sandboxing enabled to enforce network
 isolation for arbitrary lifecycle/build scripts. Bun's `--offline` governs the

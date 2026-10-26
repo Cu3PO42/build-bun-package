@@ -13,10 +13,11 @@ buildBunPackage {
   bunRoot = projectRoot;
   bunDeps = dependencyCache;
   inherit dontBunPrune;
-  bunDepsHash = "sha256-LcB/R9IKKY4Wi7Q2mop2HRE0oH5/GZtIPIXAufkq+rM=";
+  bunDepsHash = "sha256-M+eG9pFxPpIfajcGBcnaPhOgtQxvYojWTsTExHVHo7c=";
   bunInstallFlags = [ "--ignore-scripts" ];
   doCheck = true;
   checkPhase = ''
+    pushd "${projectRoot}" >/dev/null
     runHook preCheck
     test "$(bun dist/cli.js 3)" = odd
     test "$(bun dist/cli.js 4)" = even
@@ -24,6 +25,7 @@ buildBunPackage {
     # the pack and work without an install script or network access.
     test "$(bun node_modules/esbuild/bin/esbuild --version)" = 0.25.0
     runHook postCheck
+    popd >/dev/null
   '';
   doInstallCheck = true;
   installCheckPhase = ''

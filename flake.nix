@@ -17,6 +17,7 @@
       overlays.default = final: prev: {
         bun = final.callPackage ./bun.nix { };
         fetchBunDeps = final.callPackage ./fetch-bun-deps.nix { };
+        bunHooks = final.callPackage ./hooks { };
         buildBunPackage = final.callPackage ./build-bun-package.nix { };
       };
       legacyPackages = forAllSystems (
