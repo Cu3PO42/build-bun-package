@@ -415,6 +415,41 @@ in
     hash = example.bunDeps.outputHash;
   };
 
+  fetcher-lock-drift = pkgs.testers.testBuildFailure' {
+    drv =
+      (pkgs.fetchBunDeps {
+        name = "bun-fetch-lock-drift";
+        src = ./fixtures/native;
+        nativeBuildInputs = [ pkgs.jq ];
+        postPatch = ''
+          jq 'del(.dependencies["native-answer"])' package.json > package.json.new
+          mv package.json.new package.json
+        '';
+      }).overrideAttrs
+        (_: {
+          # The expected-failure wrapper writes logs, not a dependency cache.
+          outputHash = null;
+          outputHashAlgo = null;
+          outputHashMode = null;
+        });
+    expectedBuilderLogEntries = [ "lockfile is frozen" ];
+  };
+
+  fetcher-overrides =
+    (pkgs.fetchBunDeps {
+      name = "bun-overridden-fetch-${pkgs.stdenv.hostPlatform.system}";
+      src = ./fixtures;
+      bunRoot = "missing";
+      bunFlags = [ "--invalid-original-flag" ];
+      bunFetchFlags = [ "--invalid-original-fetch-flag" ];
+      hash = example.bunDeps.outputHash;
+    }).overrideAttrs
+      (_: {
+        bunRoot = "basic";
+        bunFlags = [ "--no-env-file" ];
+        bunFetchFlags = [ "--silent" ];
+      });
+
   patched-dependency-cache = pkgs.fetchBunDeps {
     name = "bun-patched-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/patched;

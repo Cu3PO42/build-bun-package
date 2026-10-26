@@ -41,7 +41,7 @@ replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
 
 ## Build and installation
 
-1. `fetchBunDeps` unpacks and patches the source and runs `bun pm fetch`
+1. `fetchBunDeps` unpacks and patches the source and runs `bun pm fetch --frozen-lockfile`
    for all platforms directly into a recursively hashed cache. The cache contains
    `.nix-bun/format-version` and a byte-for-byte copy of the selected lockfile.
    No dependency lifecycle scripts run during fetching.
@@ -52,7 +52,8 @@ replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
    dependencies in the package tree.
 3. The build hook runs `bun run build` by default.
 4. The install hook uses `bun pm pack --ignore-scripts` to select package files,
-   excludes packed dependencies, and installs the pruned `node_modules` once.
+   excludes packed dependencies, and installs pruned `node_modules` at their
+   project-relative paths.
    Bins receive Bun wrappers and declared manual pages are installed.
 
 The cache format changed: **existing `bunDepsHash` values must be regenerated**
@@ -65,7 +66,8 @@ when Bun needs to write to the cache. Some lifecycle-enabled installs require
 cache writes even when installed files use `copyfile`. This option copies the
 cache to `$TMPDIR` first.
 
-The archive applies Bun’s publish-file selection (`files`, ignore rules and package metadata); it is not merely a way to copy `node_modules`. The installer copies dependencies separately after pruning.
+The archive applies Bun’s publish-file selection (`files`, ignore rules and
+package metadata). Dependencies are copied separately after pruning.
 
 The default installer prunes dev dependencies after building and testing. Set
 `dontBunPrune = true` to retain them. For a bundled executable or static website,

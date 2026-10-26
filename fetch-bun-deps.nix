@@ -36,12 +36,14 @@ stdenvNoCC.mkDerivation (
         runHook preInstall
         export HOME="$TMPDIR/home" BUN_INSTALL_CACHE_DIR="$out" BUN_CONFIG_NO_CLEAR_TERMINAL=1 BUN_INSTALL_GLOBAL_STORE=0
         mkdir -p "$HOME" "$out"
-        cd ${lib.escapeShellArg bunRoot}
+        cd "$bunRoot"
         if [[ -f bun.lock ]]; then lockfile=bun.lock
         elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
         else echo "fetchBunDeps: a committed bun.lock or bun.lockb is required" >&2; exit 1
         fi
-        bun pm fetch --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs bunFlags} ${lib.escapeShellArgs bunFetchFlags}
+        # Refuse manifest/lockfile drift even though fetching never saves a lock.
+        # Fetch every optional platform variant for a platform-independent cache.
+        bun pm fetch ''${bunFlags-} "''${bunFlagsArray[@]}" --frozen-lockfile --os '*' --cpu '*' --libc '*' ''${bunFetchFlags-} "''${bunFetchFlagsArray[@]}"
         rm -rf "$out/.tmp"
         while IFS= read -r -d "" link; do
           target=$(readlink "$link")
@@ -53,9 +55,9 @@ stdenvNoCC.mkDerivation (
         runHook postInstall
       '';
     outputHash = hash;
-    outputHashAlgo = "sha256";
+    outputHashAlgo = if hash == "" then "sha256" else null;
     outputHashMode = "recursive";
     dontFixup = true;
-    impureEnvVars = lib.fetchers.proxyImpureEnvVars;
+    impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ (args.impureEnvVars or [ ]);
   }
 )
