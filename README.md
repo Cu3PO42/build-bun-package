@@ -98,7 +98,7 @@ pkgs.buildBunPackage {
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bun` | overlay Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
-| `nodejs` | Nixpkgs Node.js | Node.js and matching headers used by lifecycle scripts and node-gyp |
+| `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility; otherwise `node` runs Bun |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
@@ -141,11 +141,38 @@ Only put options accepted by all five commands in `bunFlags`; use the
 command-specific flags for other options. `bunBuildFlags` are script arguments,
 so Bun options belong in `bunFlags`.
 
-The config hook supplies Node.js, Python, the Nixpkgs-patched node-gyp and local
-Node headers. The builder uses a compiler-enabled stdenv, with Darwin cctools
-supplied by the hook. Override `nodejs` to choose a compatible Node.js version;
-add package-specific libraries and tools through the usual inputs. Bun loads
-Node-API addons; addons tied to V8 internals may require changes to work in Bun.
+The default hooks use Bun as the JavaScript runtime and do not add Node.js,
+npm, node-gyp, Python, or Node headers. If no `node` executable is present after
+stdenv assembles `PATH`, they append a permanent store-path `node` symlink to
+Bun. This works in custom shell phases and in patched dependency shebangs.
+An explicitly supplied Node.js runtime takes precedence, matching Bun's own
+fallback behavior. For build scripts that need real Node.js, set
+`nodejs = pkgs.nodejs-slim;` or add a Node.js package to `nativeBuildInputs`.
+
+Prebuilt Node-API addons do not need an additional hook. To compile dependencies
+using node-gyp, add the optional toolchain:
+
+```nix
+nativeBuildInputs = [ pkgs.bunNodeGypHook ];
+makeCacheWritable = true; # when installation needs to modify the cache
+```
+
+`bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
+`node-gyp` package executed with Bun. Neither Node.js nor npm is used to build or
+run that tool. Darwin receives cctools and the same deterministic Xcode-version
+fallback used by Nixpkgs' bundled gyp. The builder's stdenv supplies the compiler;
+add package-specific libraries through the usual inputs. The hook sets
+`npm_config_node_gyp`, `npm_config_nodedir`, `npm_config_target` and
+`npm_config_python` so compilation uses pinned tools and local headers rather
+than downloading them. It does not change Bun's lifecycle trust rules.
+
+The helper packages are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`. The latter
+fetches the official Node 26.3.0 header archive, independently of any Node.js
+runtime package. To use another header set or Python, override the native hook's
+`bunNodeHeaders` or `python3` argument; a custom header derivation must expose
+its `version`. If selecting another Bun, use
+`pkgs.bunNodeGypHook.override { bun = myBun; }` alongside `bun = myBun` in the
+builder. Bun supports Node-API addons; V8-specific addons may require changes.
 
 Bun 1.4.4 has no `rebuild` command. An install with `--ignore-scripts` followed
 by a normal install **does not replay dependency scripts**. `bun pm trust`
@@ -190,7 +217,9 @@ compilation is not supported.
 ## Scope and checks
 
 The checks exercise direct and writable caches, lifecycle mutations, trusted
-scripts, native Node-API addons (implicit and explicit node-gyp builds),
+scripts using Bun as `node`, native Node-API addons built with Bun (implicit and
+explicit node-gyp builds), standalone node-gyp cache validation, runtime closure
+checks without Node.js/npm, persistent shebangs, explicit Node.js precedence,
 patched dependencies, independent and replacement hooks, custom phases,
 nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with
 both hoisted and isolated linkers, scoped wrappers and manuals, structured flag

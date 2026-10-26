@@ -18,8 +18,8 @@ not exercise node-gyp. Both now have additional integration checks.
 | Were the old flags unwired? | Most already reached the hooks because `extendMkDerivation` retains caller attributes. Explicit defaults now document the interface. Hooks use stdenv's `concatTo` to support strings, structured arrays and shell `*FlagsArray` variables. The old expansion lost structured array elements. |
 | Is `bunRunFlags` necessary? | Removed. Bun options go before the script through `bunFlags`; `bunBuildFlags` remain arguments to the script. `bunWorkspace` handles selecting one workspace. Use a custom build phase for other run-only options or filter patterns. |
 | Why use `bun pm pack`? | It implements package publication rules, including `files` and ignore files. It does not transfer `node_modules`. Unlike npm's JSON dry-run output, Bun does not provide a machine-readable list here, so extracting an archive remains useful. Copying the source directory would change the installed file selection. Dependencies are excluded from extraction and copied separately after pruning. |
-| Are more hook dependencies needed? | The config hook now propagates Node.js, Python and Darwin cctools, and supplies matching Node sources and Nixpkgs' patched node-gyp. The install hook already propagates its wrapper/manual helpers. Absolute jq paths need no PATH propagation. npm's cache mapper and npm-specific Node patches have no corresponding role here. The custom bin/manual helpers retain the fixes for the pinned upstream hooks' scoped-string-bin and array-man handling. |
-| Can the Bun version be customized? | Already supported through `bun = myBun`, including `overrideAttrs`. The chosen derivation supplies fetching, hooks and wrappers. Bun >= 1.4.4 is required for these package-manager commands. Checks now also verify the selected install hook, and verify that overriding `nodejs` selects matching config tooling. Recalculate dependency hashes when a Bun change changes the cache. |
+| Are more hook dependencies needed? | The default hooks propagate Bun and a persistent fallback `node` shim. Optional `bunNodeGypHook` supplies standalone node-gyp running with Bun, Python, local headers and Darwin cctools; ordinary projects do not acquire that toolchain. The install hook already propagates its wrapper/manual helpers. Absolute jq paths need no PATH propagation. npm's cache mapper and npm-specific Node patches have no corresponding role here. The custom bin/manual helpers retain the fixes for the pinned upstream hooks' scoped-string-bin and array-man handling. |
+| Can the Bun version be customized? | Already supported through `bun = myBun`, including `overrideAttrs`. The chosen derivation supplies fetching, hooks and wrappers. Bun >= 1.4.4 is required for these package-manager commands. Checks now also verify the selected install hook, and verify that an explicitly selected `nodejs` is supplied as an optional compatibility runtime. Recalculate dependency hashes when a Bun change changes the cache. |
 | Is the preparation selection necessary? | An allowlist is necessary: forwarding the entire derivation could run package phases in the fetcher or create a dependency cycle through the hooks. Replaced the generated attribute intersection with `lib.filterAttrs`, retaining selection from `finalAttrs` so source/preparation overrides still apply. |
 
 ## Lifecycle scripts and native modules
@@ -52,12 +52,14 @@ be package-specific when Bun dependency patches depend on the original bytes.
 Patching the fixed-output cache during fetching would introduce build-platform
 interpreter paths into an otherwise portable cache.
 
-The native toolchain sets `npm_config_node_gyp` and `npm_config_nodedir` before
+The optional `bunNodeGypHook` sets `npm_config_node_gyp` and `npm_config_nodedir` before
 installation. Bun's [node-gyp shim](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/PackageManager.rs#L1396-L1481)
-otherwise falls back to downloading node-gyp through `bun x`. Local headers
-prevent node-gyp from downloading Node sources. The native fixture builds a C
-Node-API addon through both implicit `binding.gyp` handling and an explicit
-install script. Its installed addon returns `42` from Bun and Node. A separate
+otherwise falls back to downloading node-gyp through `bun x`. The selected
+wrapper executes standalone node-gyp with Bun. Local headers and an explicit
+target version prevent node-gyp from downloading Node sources. The native
+fixture builds a C Node-API addon through both implicit `binding.gyp` handling and an explicit
+install script. Its installed addon returns `42` from Bun; a separate consumer test loads it in
+genuine Node.js without adding Node.js to the addon build. A separate
 check removes trust and verifies compilation does not occur.
 
 This establishes support for the tested Node-API build path. It does not imply
@@ -65,6 +67,46 @@ that every native package works: V8-specific addons, packages shipping their own
 node-gyp, or scripts downloading extra binaries may require package-specific
 inputs or patches. Bun's [lifecycle rules](https://bun.com/docs/pm/lifecycle)
 continue to determine which scripts run.
+
+## Follow-up: Bun as `node` and standalone node-gyp
+
+The initial automatic Node.js toolchain was too broad. It has been replaced:
+`nodejs` defaults to `null`, and ordinary Bun builds do not acquire Node.js,
+npm, or node-gyp. Native dependencies with prebuilt Node-API binaries continue
+to work. Compilation through node-gyp opts into `bunNodeGypHook`.
+
+Bun already creates a temporary `node` symlink for child scripts when Node.js is
+absent. This is explicit in its pinned
+[lifecycle environment setup](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/PackageManager.rs#L1357-L1383)
+and [run-command PATH setup](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/runtime/cli/run_command.rs#L2001-L2073).
+Those temporary paths cannot serve as permanent installed shebangs and do not
+modify the parent Nix builder's PATH. A small shared setup hook therefore adds a
+store-path `node` symlink after stdenv finishes assembling PATH, only when no
+`node` is available. It uses Bun's own CLI compatibility mode; it does not
+implement a separate Node emulator. Tests verify real Node.js takes precedence
+and patched executable shebangs refer to the persistent shim.
+
+Nixpkgs' existing standalone node-gyp package still runs with Node.js, so it would
+retain the dependency. Instead, [node-gyp.nix](./node-gyp.nix) packages upstream
+node-gyp 13.1.0 from its npm tarball using the ordinary Bun builder and a committed
+lockfile containing only runtime dependencies. Its executable wrapper invokes
+Bun directly. A small gyp patch retains Nixpkgs' Darwin Xcode/CLT fallback.
+[The headers package](./node-headers.nix) downloads the official header archive;
+it does not build or reference a Node.js runtime. The native hook supplies these
+packages and Python, with compiler tools coming from stdenv.
+
+The existing C addon builds through both implicit `binding.gyp` and explicit
+`node-gyp rebuild` paths using this toolchain. Its build-phase `node` command
+identifies itself as Bun. A fresh sandboxed build also verifies its generated
+Makefile uses the local header directory, with the header-download URL set to
+an unusable localhost endpoint. A separate genuine-Node consumer loads the
+resulting addon, and the untrusted-dependency test still prevents compilation.
+
+Inspection of both build and runtime closures found no Node.js or npm package
+in the example, standalone node-gyp, or native-addon build. Automated closure
+checks guard the runtime closures and additionally reject node-gyp in the
+ordinary example's closure. These checks are separate from the explicit Node.js
+compatibility tests, which intentionally request a genuine Node.js runtime.
 
 ## Workspace installation
 
@@ -102,7 +144,7 @@ unnecessary here.
 ## Validation and remaining limits
 
 Validation includes builds on `aarch64-darwin`, `aarch64-linux`, and
-`x86_64-linux`: 37 checks per system, 111 total. Both Linux suites ran through
+`x86_64-linux`: 42 checks per system, 126 total. Both Linux suites ran through
 the configured `ssh://nix-builder`,
 whose sandbox setting is `relaxed`; these ordinary derivations do not request a
 sandbox exemption. Native compilation/loading, source-independent workspace
@@ -161,7 +203,7 @@ are useful independently of which fetching approach is chosen.
 | [Overridable inputs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929994310) and [derivation extension](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3939220032) | `buildBunPackage` already uses `lib.extendMkDerivation`. The smaller standalone fetcher retains `mkDerivation` with `finalAttrs`, as the pinned npm fetcher does, and now honors public hash/root/flag overrides. No additional constructor layer is needed for the tested API. |
 | [Structured flags](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838503828) | Hooks use stdenv `concatTo` and have a structured-array regression with spaces and literal glob characters. The fetcher preserves its Nix flag lists through explicit escaping of `finalAttrs`; its regression now actually uses a config filename containing spaces. This also supports unstructured callers. |
 | [Hook placement](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929315598), [duplicate hook execution](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838503397), and [commands versus arguments](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2655604648) | Config registration stays in `postPatchHooks`, matching the pinned npm hook and working with overridden configure phases. Shell hooks are invoked through `runHook`, not inlined as well. The fetcher regression asserts its `preInstall` runs once. Documentation uses an executable cache-patching command for `preBunInstall`, with flags in flag attributes. |
-| [Required hook dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2793130104) | Each setup hook now propagates its selected Bun. The standalone-hook test omits an explicit Bun input. The installer retains `installShellFiles` and `makeWrapper`; native config tools and pinned absolute jq references remain. |
+| [Required hook dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2793130104) | Each setup hook now propagates its selected Bun. The standalone-hook test omits an explicit Bun input. The installer retains `installShellFiles` and `makeWrapper`, with pinned absolute jq references. Native compilation tools are now an optional hook. |
 | [Cache compression](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929997815), [archive tradeoffs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2837704284), and [duplicate unpack/copy work](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838978045) | Retain a recursively hashed directory. This avoids an additional compression/extraction pass, allows store deduplication, and uses the cache directly unless one writable copy is requested. Nix binary-cache transfers can compress NARs separately. The package-file archive used by the installer serves publication-file selection and is unrelated to dependency-cache serialization. |
 | [Keep the public API small](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838504530) | No separate OS/CPU lists, hash-algorithm switches, or legacy hash aliases were added. SHA-256 is the default, and an explicit SRI hash carries its own algorithm. `strictDeps` defaults to true. Standard derivation phase overrides remain available; configurable command flags are shared with the hooks rather than invented as fetcher-only aliases. |
 | [Updater integration](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2793137442), [helper placement](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r3825776266), and [separate commits](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-2611626393) | The documented update flow remains `lib.fakeHash` and rebuilding `bunDeps`; automatic nix-update support has not been validated. An upstream submission should place these helpers under `pkgs/build-support/node`; the standalone overlay does not need that directory reshuffle. Follow-up changes have separate commits. |
