@@ -1,5 +1,25 @@
 { pkgs }:
 let
+  # CI must execute the fetcher again when its implementation or inputs change,
+  # even when the expected content hash is unchanged and already substituted.
+  fetchForTest =
+    args:
+    pkgs.testers.invalidateFetcherByDrvHash pkgs.fetchBunDeps (
+      args
+      // {
+        postInstall = (args.postInstall or "") + ''
+          test ! -e "$out/node_modules"
+          if find "$out" -maxdepth 1 -name '*.npm' -print | grep -q .; then
+            echo 'fetchBunDeps retained timestamped registry manifests' >&2
+            exit 1
+          fi
+          if find "$out" -type l -lname '/*' -print | grep -q .; then
+            echo 'fetchBunDeps retained absolute cache symlinks' >&2
+            exit 1
+          fi
+        '';
+      }
+    );
   example = pkgs.callPackage ./example.nix { };
   lifecycle-writable = pkgs.buildBunPackage {
     pname = "bun-lifecycle-writable";
@@ -433,6 +453,12 @@ in
       alternate = example.overrideAttrs (_: {
         bun = alternateBun;
       });
+      rebuiltBun = pkgs.bun.overrideAttrs (_: {
+        env.NIX_BUN_TEST_VARIANT = "same-version";
+      });
+      rebuilt = example.overrideAttrs (_: {
+        bun = rebuiltBun;
+      });
       alternateNodejs = pkgs.nodejs_22;
       alternateNode = example.overrideAttrs (_: {
         nodejs = alternateNodejs;
@@ -445,6 +471,9 @@ in
         bunBuildScript = "build";
       });
     in
+    assert alternate.bunDeps.outPath != example.bunDeps.outPath;
+    assert rebuilt.bunDeps.outPath != example.bunDeps.outPath;
+    assert rebuiltBun.version == pkgs.bun.version;
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
     assert builtins.elem (toString
@@ -474,7 +503,7 @@ in
 
   # Different output names force each platform to fetch its own cache rather
   # than reuse a fixed-output path already produced on another platform.
-  dependency-cache = pkgs.fetchBunDeps {
+  dependency-cache = fetchForTest {
     name = "bun-example-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/basic;
     hash = example.bunDeps.outputHash;
@@ -501,7 +530,7 @@ in
   };
 
   fetcher-overrides =
-    (pkgs.fetchBunDeps {
+    (fetchForTest {
       name = "bun-overridden-fetch-${pkgs.stdenv.hostPlatform.system}";
       src = ./fixtures;
       bunRoot = "missing";
@@ -515,26 +544,26 @@ in
         bunFetchFlags = [ "--silent" ];
       });
 
-  patched-dependency-cache = pkgs.fetchBunDeps {
+  patched-dependency-cache = fetchForTest {
     name = "bun-patched-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/patched;
     hash = "sha256-lT7chnHqWem8M+vLBqBTJLvbtpSoGs/D1KQMB1Zne3Y=";
   };
 
-  binary-dependency-cache = pkgs.fetchBunDeps {
+  binary-dependency-cache = fetchForTest {
     name = "bun-binary-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/binary-lock;
     hash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
   };
 
-  source-dependency-cache = pkgs.fetchBunDeps {
+  source-dependency-cache = fetchForTest {
     name = "bun-source-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/sources;
     nativeBuildInputs = [ pkgs.git ];
     hash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
   };
 
-  workspace-dependency-cache = pkgs.fetchBunDeps {
+  workspace-dependency-cache = fetchForTest {
     name = "bun-workspace-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/workspace;
     hash = workspace.bunDeps.outputHash;

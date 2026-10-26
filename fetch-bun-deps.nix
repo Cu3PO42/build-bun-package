@@ -19,8 +19,12 @@ stdenvNoCC.mkDerivation (
   finalAttrs:
   args
   // {
+    # FOD paths otherwise depend only on name and content hash: a substituted
+    # cache could hide an incompatible change in Bun's cache implementation.
+    name = "${name}-bun-${bun.version}-${
+      builtins.unsafeDiscardStringContext (builtins.substring 0 12 (builtins.baseNameOf bun.drvPath))
+    }";
     inherit
-      name
       bunRoot
       bunFlags
       bunFetchFlags

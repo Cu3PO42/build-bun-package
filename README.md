@@ -60,7 +60,10 @@ replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
 
 The cache format changed: **existing `bunDepsHash` values must be regenerated**
 with `lib.fakeHash`, even when the lockfile has not changed. A reused `bunDeps`
-cache must contain matching version metadata and the same lockfile.
+cache must contain matching version metadata and the same lockfile. Cache
+output names include the selected Bun version and derivation identity, forcing
+fetching again after Bun changes even if an old fixed-output cache was already
+substituted. This changes output paths without changing the cache content hash.
 
 By default Bun reads the store cache directly. Set `makeCacheWritable = true`
 when dependency patches or lifecycle scripts modify existing package files or
