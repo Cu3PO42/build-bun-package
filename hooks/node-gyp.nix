@@ -2,6 +2,7 @@
   lib,
   makeSetupHook,
   bun,
+  bunHooks,
   bunNodeGyp,
   bunNodeHeaders,
   python3,
@@ -15,6 +16,7 @@ makeSetupHook {
   name = "bun-node-gyp-hook";
   propagatedBuildInputs = [
     nodeGyp
+    (bunHooks.override { inherit bun; }).bunNodeFallbackHook
     python3
   ]
   ++ lib.optionals stdenv.hostPlatform.isDarwin [ cctools ];

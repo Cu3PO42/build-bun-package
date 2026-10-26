@@ -139,6 +139,37 @@ in
 
   inherit native-addon;
 
+  standalone-node-gyp-hook =
+    pkgs.runCommandCC "bun-standalone-node-gyp-hook"
+      {
+        nativeBuildInputs = [ pkgs.bunNodeGypHook ];
+        npm_config_disturl = "http://127.0.0.1:9";
+      }
+      ''
+        cp -R ${./fixtures/native/native} project
+        chmod -R u+w project
+        cd project
+        cat > binding.gyp <<'JSON'
+        {
+          "targets": [{
+            "target_name": "answer",
+            "sources": ["answer.c"],
+            "defines": ["NIX_BUN_NODE_FALLBACK=<!(node -p 'process.versions.bun ? 1 : 0')"]
+          }]
+        }
+        JSON
+        cat >> answer.c <<'C'
+        #if NIX_BUN_NODE_FALLBACK != 1
+        #error The gyp command must use Bun as node
+        #endif
+        C
+        test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
+        node-gyp rebuild
+        test "$(bun -p 'require("./build/Release/answer.node").answer()')" = 42
+        mkdir -p "$out"
+        cp build/Release/answer.node "$out/"
+      '';
+
   native-node-compatibility =
     pkgs.runCommand "bun-native-node-compatibility"
       {

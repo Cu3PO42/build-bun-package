@@ -12,18 +12,19 @@ let
     mkdir -p "$out/bin"
     ln -s ${bun}/bin/bun "$out/bin/node"
   '';
-  nodeFallbackHook = makeSetupHook {
+  bunNodeFallbackHook = makeSetupHook {
     name = "bun-node-fallback-hook";
+    propagatedBuildInputs = [ bun ];
     substitutions = { inherit bunNodeShim; };
   } ./bun-node-fallback-hook.sh;
 in
 {
-  inherit bunNodeShim;
+  inherit bunNodeShim bunNodeFallbackHook;
   bunConfigHook = makeSetupHook {
     name = "bun-config-hook";
     propagatedBuildInputs = [
       bun
-      nodeFallbackHook
+      bunNodeFallbackHook
     ];
     meta.license = lib.licenses.mit;
   } ./bun-config-hook.sh;
@@ -31,7 +32,7 @@ in
     name = "bun-build-hook";
     propagatedBuildInputs = [
       bun
-      nodeFallbackHook
+      bunNodeFallbackHook
     ];
     meta.license = lib.licenses.mit;
   } ./bun-build-hook.sh;
@@ -40,7 +41,7 @@ in
     meta.license = lib.licenses.mit;
     propagatedBuildInputs = [
       bun
-      nodeFallbackHook
+      bunNodeFallbackHook
       makeWrapper
       installShellFiles
     ];
