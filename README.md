@@ -94,7 +94,8 @@ pkgs.buildBunPackage {
 | `nodejs` | Nixpkgs Node.js | Node.js and matching headers used by lifecycle scripts and node-gyp |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
-| `bunRoot` | `"."` | Project directory relative to the unpacked source root |
+| `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
+| `bunWorkspace` | `null` | Workspace directory relative to `bunRoot`; selects its build script, bins and manuals |
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
 | `bunInstallFlags` | `[]` | Extra install arguments, e.g. `[ "--ignore-scripts" ]` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
@@ -142,12 +143,26 @@ hardcoded `/bin/bash` or `/usr/bin/env` shebang can fail before patching. Such
 packages need an explicit fix, for example `makeCacheWritable = true` and a
 `preBunInstall` hook that patches the cache.
 
-For monorepos, fetch and install dependencies from the workspace root. Run workspace scripts through a custom `buildPhase` when you need workspace-specific Bun options. Workspace links work
-during the build; use a custom `installPhase` to install the intended workspace
-or bundle. Copying the root's `node_modules` alone cannot preserve links to
-workspace source directories outside that tree. See `tests/fixtures/workspace`.
-Cross compilation is not supported by this initial implementation.
+For monorepos, keep `bunRoot` at the workspace root containing the lockfile.
+Set `bunWorkspace = "apps/my-app";` to build and expose one workspace's bins
+and manuals. Set `makeCacheWritable = true` when Bun needs to update the cache
+for local packages or workspace bins. Dependencies are installed and pruned for the whole workspace.
+The installer preserves the project directory layout beneath
+`$out/lib/node_modules/<root-package-name>`, packing linked workspace packages
+separately and copying both root and workspace-local `node_modules`. A root
+without a version acts as a container: only its manifest and dependencies are
+installed. Packages passed to `bun pm pack` require a name and version. This
+preserves hoisted and isolated-linker dependencies after the source is removed.
+Local package links outside `bunRoot` are rejected; include them under that
+root or provide a custom installer. This is not a minimal dependency closure
+for the selected workspace: other installed workspaces are retained. For a
+bundle or a subset of build artifacts, use a custom `installPhase`.
 
+`bunRoot` and `bunWorkspace` serve different purposes. Each hook enters the
+project root; the build hook additionally enters the selected workspace. Neither
+changes the working directory of later phases. Unlike npm's workspace option,
+`bunWorkspace` is a directory, not a package name or filter pattern. Cross
+compilation is not supported.
 ## Scope and checks
 
 The checks exercise direct and writable caches, lifecycle mutations, trusted

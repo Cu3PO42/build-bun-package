@@ -23,6 +23,7 @@ lib.extendMkDerivation {
       bunBuildHook ? null,
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
+      bunWorkspace ? null,
       bunFlags ? [ ],
       bunFetchFlags ? [ ],
       bunInstallFlags ? [ ],
@@ -105,6 +106,7 @@ lib.extendMkDerivation {
     in
     {
       inherit
+        bunWorkspace
         bunFlags
         bunFetchFlags
         bunInstallFlags

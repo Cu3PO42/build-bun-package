@@ -35,6 +35,7 @@ let
     version = "1.0.0";
     src = ./fixtures/workspace;
     bunDepsHash = "sha256-a/YgadTQr130SaPzXwbNMC2Eqwak0VRUboCi/OFcARY=";
+    makeCacheWritable = true;
     bunFlags = [ "--silent" ];
     installPhase = ''
       runHook preInstall
@@ -50,6 +51,48 @@ let
 in
 {
   inherit example workspace;
+
+  workspace-installed = pkgs.buildBunPackage {
+    pname = "bun-workspace-installed";
+    version = "1";
+    src = ./fixtures/workspace;
+    bunDeps = workspace.bunDeps;
+    bunWorkspace = "apps/cli";
+    makeCacheWritable = true;
+    # Root publish selection deliberately excludes workspace sources. Linked
+    # packages must be installed independently of this list.
+    nativeBuildInputs = [ pkgs.jq ];
+    postPatch = ''
+      jq '.files = ["package.json"]' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      test "$("$out/bin/workspace-cli")" = 'workspace works'
+      test -f "$out/lib/node_modules/workspace-example/packages/message/index.js"
+      test ! -e "$out/lib/node_modules/workspace-example/apps/cli/index.js"
+      # Resolve every dependency link after removing the original source tree.
+      cd "$TMPDIR"
+      rm -rf "$NIX_BUILD_TOP/workspace"
+      test "$("$out/bin/workspace-cli")" = 'workspace works'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+    '';
+  };
+
+  workspace-isolated = pkgs.buildBunPackage {
+    pname = "bun-workspace-isolated";
+    version = "1";
+    src = ./fixtures/workspace;
+    bunDeps = workspace.bunDeps;
+    bunWorkspace = "apps/cli";
+    makeCacheWritable = true;
+    bunInstallFlags = [ "--linker=isolated" ];
+    doInstallCheck = true;
+    installCheckPhase = ''
+      test "$("$out/bin/workspace-cli")" = 'workspace works'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+    '';
+  };
 
   inherit lifecycle-writable;
 

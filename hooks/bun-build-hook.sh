@@ -2,7 +2,7 @@
 
 bunBuildHook() {
     echo "Executing bunBuildHook"
-    pushd "${bunRoot:-.}" >/dev/null
+    pushd "${bunRoot:-.}/${bunWorkspace:-.}" >/dev/null
 
     runHook preBuild
 
