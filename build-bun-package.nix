@@ -21,6 +21,12 @@ lib.extendMkDerivation {
       bunBuildHook ? null,
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
+      bunFlags ? [ ],
+      bunFetchFlags ? [ ],
+      bunInstallFlags ? [ ],
+      bunBuildFlags ? [ ],
+      bunPackFlags ? [ ],
+      bunPruneFlags ? [ ],
       ...
     }@args:
     let
@@ -71,6 +77,7 @@ lib.extendMkDerivation {
         "buildInputs"
         "env"
         "bunRoot"
+        "bunFlags"
         "bunFetchFlags"
       ] (_: null)) finalAttrs;
       deps =
@@ -89,6 +96,14 @@ lib.extendMkDerivation {
           );
     in
     {
+      inherit
+        bunFlags
+        bunFetchFlags
+        bunInstallFlags
+        bunBuildFlags
+        bunPackFlags
+        bunPruneFlags
+        ;
       bun = args.bun or defaultBun;
       bunDeps = deps;
       bunBuildScript = args.bunBuildScript or "build";

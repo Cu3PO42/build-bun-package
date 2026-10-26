@@ -40,7 +40,7 @@ bunConfigHook() {
     fi
 
     # Bun runs permitted lifecycle scripts during install; no separate rebuild is needed.
-    if ! bun install --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"; then
+    if ! bun install ${bunFlags-} "${bunFlagsArray[@]}" --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"; then
         echo 'bunConfigHook: offline install failed; check cache contents and lockfile, or try makeCacheWritable = true' >&2
         exit 1
     fi

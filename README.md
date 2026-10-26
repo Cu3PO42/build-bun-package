@@ -97,7 +97,7 @@ pkgs.buildBunPackage {
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
 | `bunInstallFlags` | `[]` | Extra install arguments, e.g. `[ "--ignore-scripts" ]` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
-| `bunRunFlags` | `[]` | Options before the script name, e.g. `[ "--filter" "./apps/*" ]` |
+| `bunFlags` | `[]` | Common Bun options before script names, applied to fetch, install, run, pack and prune; e.g. `[ "--silent" ]` |
 | `bunBuildFlags` | `[]` | Arguments passed to the build script |
 | `dontBunBuild` | `false` | Skip the default build script |
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
@@ -122,8 +122,9 @@ Source selection, unpack and patch settings, caller preparation inputs, and
 `env` are forwarded to the dependency fetcher. This explicit selection avoids
 passing package build and install phases into the fixed-output fetch. The hook
 flags are derivation attributes; Nix passes list-valued flags as shell arrays.
-Bun commands have different option sets, so use the command-specific flags
-above rather than a single flag applied to every command. Add compilers, `pkg-config`,
+Only put options accepted by all five commands in `bunFlags`; use the
+command-specific flags for other options. `bunBuildFlags` are script arguments,
+so Bun options belong in `bunFlags`. Add compilers, `pkg-config`,
 Node.js, Python, or other lifecycle script tools through the usual inputs. Bun
 executes trusted dependency lifecycle scripts during `bun install`, so a
 separate `npm rebuild` would run them again. Native addons may invoke node-gyp:
@@ -131,7 +132,7 @@ provide a compatible Node.js, Python, compiler and local Node headers, and
 configure node-gyp for those headers so it does not download them during the
 sandboxed build. This helper does not configure node-gyp automatically.
 
-For monorepos, fetch and install dependencies from the workspace root. Set `bunRunFlags = [ "--filter" "./apps/my-app" ];` to run the build script in a selected workspace (or use Bun’s other filter patterns). Workspace links work
+For monorepos, fetch and install dependencies from the workspace root. Run workspace scripts through a custom `buildPhase` when you need workspace-specific Bun options. Workspace links work
 during the build; use a custom `installPhase` to install the intended workspace
 or bundle. Copying the root's `node_modules` alone cannot preserve links to
 workspace source directories outside that tree. See `tests/fixtures/workspace`.

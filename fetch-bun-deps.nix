@@ -9,6 +9,7 @@
   name ? "bun-deps",
   hash ? "",
   bunRoot ? ".",
+  bunFlags ? [ ],
   bunFetchFlags ? [ ],
   nativeBuildInputs ? [ ],
   ...
@@ -17,7 +18,12 @@ assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4") "fetchBunDeps requ
 stdenvNoCC.mkDerivation (
   args
   // {
-    inherit name bunRoot bunFetchFlags;
+    inherit
+      name
+      bunRoot
+      bunFlags
+      bunFetchFlags
+      ;
     nativeBuildInputs = nativeBuildInputs ++ [
       bun
       cacert
@@ -35,7 +41,7 @@ stdenvNoCC.mkDerivation (
         elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
         else echo "fetchBunDeps: a committed bun.lock or bun.lockb is required" >&2; exit 1
         fi
-        bun pm fetch --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs bunFetchFlags}
+        bun pm fetch --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs bunFlags} ${lib.escapeShellArgs bunFetchFlags}
         rm -rf "$out/.tmp"
         while IFS= read -r -d "" link; do
           target=$(readlink "$link")

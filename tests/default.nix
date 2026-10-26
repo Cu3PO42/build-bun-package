@@ -20,7 +20,7 @@ let
     version = "1.0.0";
     src = ./fixtures/workspace;
     bunDepsHash = "sha256-a/YgadTQr130SaPzXwbNMC2Eqwak0VRUboCi/OFcARY=";
-    bunRunFlags = [ "--silent" ];
+    bunFlags = [ "--silent" ];
     installPhase = ''
       runHook preInstall
       mkdir -p "$out/share"
@@ -271,6 +271,7 @@ in
       changed = example.overrideAttrs (_: {
         bunDepsHash = pkgs.lib.fakeHash;
         bunFetchFlags = [ "--test-flag" ];
+        bunFlags = [ "--no-env-file" ];
       });
       prepared = example.overrideAttrs (old: {
         src = ./fixtures;
@@ -302,6 +303,7 @@ in
     in
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
+    assert changed.bunDeps.bunFlags == [ "--no-env-file" ];
     assert changed.bunDeps.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.drvPath != example.bunDeps.drvPath;
     assert prepared.bunDeps.src == ./fixtures;

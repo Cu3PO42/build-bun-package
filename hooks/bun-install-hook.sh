@@ -34,11 +34,11 @@ bunInstallHook() {
     packageOut="$out/lib/node_modules/$packageName"
     mkdir -p "$packageOut"
 
-    bun pm pack ${bunPackFlags-} "${bunPackFlagsArray[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
+    bun pm pack ${bunFlags-} "${bunFlagsArray[@]}" ${bunPackFlags-} "${bunPackFlagsArray[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
     tar -xzf "$TMPDIR/package.tgz" -C "$packageOut" --strip-components=1 --exclude='package/node_modules' --exclude='package/node_modules/*'
 
     if [[ -z ${dontBunPrune-} ]]; then
-        bun prune --production ${bunPruneFlags-} "${bunPruneFlagsArray[@]}"
+        bun prune ${bunFlags-} "${bunFlagsArray[@]}" --production ${bunPruneFlags-} "${bunPruneFlagsArray[@]}"
     fi
     if [[ -d node_modules ]]; then cp -R node_modules "$packageOut/node_modules"; fi
 
