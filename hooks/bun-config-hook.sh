@@ -40,6 +40,7 @@ bunConfigHook() {
     # Use headers matching the supplied Node.js; node-gyp must not fetch them.
     export npm_config_nodedir="@nodeSrc@"
     mkdir -p "$HOME"
+    # Read the hash-verified cache directly unless installation needs to mutate it.
     export BUN_INSTALL_CACHE_DIR="$bunDeps"
     if [[ -n ${makeCacheWritable-} ]]; then
         BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"
@@ -54,6 +55,7 @@ bunConfigHook() {
     # Keep Bun's trust and dependency ordering by running scripts in this install.
     # Packages that need shebang fixes before scripts run must be patched in
     # the source/cache before this command (see README.md).
+    # copyfile keeps mutable installed files separate from the store/cache inode.
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
     if ! bun install "${installFlags[@]}" --offline --frozen-lockfile --backend copyfile; then

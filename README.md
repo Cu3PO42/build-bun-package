@@ -2,6 +2,8 @@
 
 `buildBunPackage` builds Bun projects using a fixed-output dependency fetch followed
 by an offline install. Includes Bun 1.4.4 and a nixpkgs overlay.
+See [the implementation review](./REVIEW.md) for the Nixpkgs comparison,
+workspace/native-module validation, and remaining limitations.
 
 ```sh
 nix build path:.#example
@@ -133,7 +135,9 @@ unstructured list attributes become space-separated strings. The fetcher
 shell-escapes its Nix flag lists and preserves spaces in either mode.
 Only put options accepted by all five commands in `bunFlags`; use the
 command-specific flags for other options. `bunBuildFlags` are script arguments,
-so Bun options belong in `bunFlags`. The config hook supplies Node.js, Python, the Nixpkgs-patched node-gyp and local
+so Bun options belong in `bunFlags`.
+
+The config hook supplies Node.js, Python, the Nixpkgs-patched node-gyp and local
 Node headers. The builder uses a compiler-enabled stdenv, with Darwin cctools
 supplied by the hook. Override `nodejs` to choose a compatible Node.js version;
 add package-specific libraries and tools through the usual inputs. Bun loads
@@ -147,7 +151,17 @@ Bun's permitted scripts in the initial install and patch shebangs afterward.
 This differs from npm: a lifecycle script that executes a dependency with a
 hardcoded `/bin/bash` or `/usr/bin/env` shebang can fail before patching. Such
 packages need an explicit fix, for example `makeCacheWritable = true` and a
-`preBunInstall` hook that patches the cache.
+`preBunInstall` hook that patches the cache:
+
+```nix
+makeCacheWritable = true;
+preBunInstall = ''
+  patchShebangs "$BUN_INSTALL_CACHE_DIR"
+'';
+```
+
+Use a package-specific cache patch when a dependency patch needs the original
+file contents. The `lifecycle-shebangs` check exercises this preparation path.
 
 For monorepos, keep `bunRoot` at the workspace root containing the lockfile.
 Set `bunWorkspace = "apps/my-app";` to build and expose one workspace's bins
@@ -172,8 +186,10 @@ compilation is not supported.
 ## Scope and checks
 
 The checks exercise direct and writable caches, lifecycle mutations, trusted
-scripts, patched dependencies, independent and replacement hooks, custom phases,
-nested roots, workspace links, scoped wrappers and manuals, pruning, and cache
+scripts, native Node-API addons (implicit and explicit node-gyp builds),
+patched dependencies, independent and replacement hooks, custom phases,
+nested roots, installed workspaces with both hoisted and isolated linkers,
+scoped wrappers and manuals, structured flag arrays, pruning, and cache
 validation. They also cover a binary lockfile and a fixture combining a pinned
 Git dependency, an HTTP tarball, and a non-default registry. Distinct cache
 output names force independent platform fetches. Run `nix flake check` on each
