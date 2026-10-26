@@ -126,7 +126,11 @@ restore the working directory before the next phase.
 Source selection, unpack and patch settings, caller preparation inputs, and
 `env` are forwarded to the dependency fetcher. This explicit selection avoids
 passing package build and install phases into the fixed-output fetch. The hook
-flags are derivation attributes; Nix passes list-valued flags as shell arrays.
+flags are derivation attributes. Hooks use stdenv's `concatTo` convention for
+strings, structured arrays, and shell `*FlagsArray` variables. Set
+`__structuredAttrs = true` when hook flag arguments contain spaces; ordinary
+unstructured list attributes become space-separated strings. The fetcher
+shell-escapes its Nix flag lists and preserves spaces in either mode.
 Only put options accepted by all five commands in `bunFlags`; use the
 command-specific flags for other options. `bunBuildFlags` are script arguments,
 so Bun options belong in `bunFlags`. The config hook supplies Node.js, Python, the Nixpkgs-patched node-gyp and local

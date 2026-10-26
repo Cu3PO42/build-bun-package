@@ -4,12 +4,14 @@
 # string-bin handling uses the full scoped name, and splits bin paths on spaces.
 bunInstallExecutables() {
     local packageJson=$1 packageOut=$2 binName binPath entry
+    local -a wrapperFlags=()
+    concatTo wrapperFlags makeWrapperArgs makeWrapperArgsArray
 
     while IFS= read -r entry; do
         binName=$(@jq@/bin/jq -r '.key' <<< "$entry")
         binPath=$(@jq@/bin/jq -r '.value' <<< "$entry")
         makeWrapper @bun@/bin/bun "$out/bin/$binName" \
-            --add-flags "$(printf '%q' "$packageOut/$binPath")" ${makeWrapperArgs-} "${makeWrapperArgsArray[@]}"
+            --add-flags "$(printf '%q' "$packageOut/$binPath")" "${wrapperFlags[@]}"
     done < <(@jq@/bin/jq -c 'if (.bin | type) == "string" then {key: (.name | split("/") | last), value: .bin} elif (.bin | type) == "object" then .bin | to_entries[] else empty end' "$packageJson")
 }
 
@@ -30,6 +32,8 @@ bunInstallPackageTree() {
     local projectRoot=$1 projectOut=$2 current currentOut link sourceLink target relative targetOut
     local -a pending=("$projectRoot" "${projectRoot}/${bunWorkspace:-.}")
     local -A installed=()
+    local -a packFlags=()
+    concatTo packFlags bunFlags bunFlagsArray bunPackFlags bunPackFlagsArray
 
     while (( ${#pending[@]} )); do
         current=$(realpath "${pending[0]}")
@@ -51,7 +55,7 @@ bunInstallPackageTree() {
             # packed. Its metadata and node_modules still anchor the layout.
             cp package.json "$currentOut/package.json"
         else
-            bun pm pack ${bunFlags-} "${bunFlagsArray[@]}" ${bunPackFlags-} "${bunPackFlagsArray[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
+            bun pm pack "${packFlags[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
             tar -xzf "$TMPDIR/package.tgz" -C "$currentOut" --strip-components=1 --exclude='*/node_modules' --exclude='*/node_modules/*'
         fi
         popd >/dev/null
@@ -97,7 +101,9 @@ bunInstallHook() {
     selectedPackage="${bunWorkspace:-.}"
 
     if [[ -z ${dontBunPrune-} ]]; then
-        bun prune ${bunFlags-} "${bunFlagsArray[@]}" --production ${bunPruneFlags-} "${bunPruneFlagsArray[@]}"
+        local -a pruneFlags=()
+        concatTo pruneFlags bunFlags bunFlagsArray bunPruneFlags bunPruneFlagsArray
+        bun prune "${pruneFlags[@]}" --production
     fi
     bunInstallPackageTree "$projectRoot" "$packageOut"
 

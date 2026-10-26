@@ -11,7 +11,10 @@ bunBuildHook() {
         exit 1
     fi
 
-    bun run ${bunFlags-} "${bunFlagsArray[@]}" "$bunBuildScript" ${bunBuildFlags-} "${bunBuildFlagsArray[@]}"
+    local -a runFlags=() buildFlags=()
+    concatTo runFlags bunFlags bunFlagsArray
+    concatTo buildFlags bunBuildFlags bunBuildFlagsArray
+    bun run "${runFlags[@]}" "$bunBuildScript" "${buildFlags[@]}"
 
     runHook postBuild
 

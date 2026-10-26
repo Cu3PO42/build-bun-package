@@ -280,6 +280,37 @@ in
         bunBuildFlags = [ "--minify" ];
       });
 
+  structured-flags = example.overrideAttrs (old: {
+    __structuredAttrs = true;
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunFlags = [
+      "--no-env-file"
+      "--silent"
+    ];
+    bunBuildFlags = [
+      "argument with spaces"
+      "literal *"
+    ];
+    makeWrapperArgs = [
+      "--set"
+      "BUN_WRAPPER_TEST"
+      "value with spaces"
+    ];
+    postPatch = ''
+      jq '.scripts.build = "bun build ./cli.js --target=bun --external=is-odd --outdir=dist && bun ./check-args.js"' package.json > package.json.new
+      mv package.json.new package.json
+      cat > check-args.js <<'JS'
+      const args = process.argv.slice(2);
+      if (JSON.stringify(args) !== JSON.stringify(["argument with spaces", "literal *"])) {
+        throw new Error(JSON.stringify(args));
+      }
+      JS
+    '';
+    postInstallCheck = ''
+      grep -q 'value with spaces' "$out/bin/bun-example"
+    '';
+  });
+
   replacement-build-hook =
     let
       replacement = pkgs.makeSetupHook { name = "replacement-bun-build"; } (

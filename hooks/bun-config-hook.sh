@@ -54,7 +54,9 @@ bunConfigHook() {
     # Keep Bun's trust and dependency ordering by running scripts in this install.
     # Packages that need shebang fixes before scripts run must be patched in
     # the source/cache before this command (see README.md).
-    if ! bun install ${bunFlags-} "${bunFlagsArray[@]}" --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"; then
+    local -a installFlags=()
+    concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
+    if ! bun install "${installFlags[@]}" --offline --frozen-lockfile --backend copyfile; then
         echo 'bunConfigHook: offline install failed; check cache contents and lockfile, or try makeCacheWritable = true' >&2
         exit 1
     fi

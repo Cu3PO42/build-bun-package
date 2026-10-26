@@ -16,6 +16,7 @@
 }@args:
 assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4") "fetchBunDeps requires Bun >= 1.4.4";
 stdenvNoCC.mkDerivation (
+  finalAttrs:
   args
   // {
     inherit
@@ -43,7 +44,7 @@ stdenvNoCC.mkDerivation (
         fi
         # Refuse manifest/lockfile drift even though fetching never saves a lock.
         # Fetch every optional platform variant for a platform-independent cache.
-        bun pm fetch ''${bunFlags-} "''${bunFlagsArray[@]}" --frozen-lockfile --os '*' --cpu '*' --libc '*' ''${bunFetchFlags-} "''${bunFetchFlagsArray[@]}"
+        bun pm fetch ${lib.escapeShellArgs finalAttrs.bunFlags} "''${bunFlagsArray[@]}" --frozen-lockfile --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs finalAttrs.bunFetchFlags} "''${bunFetchFlagsArray[@]}"
         rm -rf "$out/.tmp"
         while IFS= read -r -d "" link; do
           target=$(readlink "$link")
