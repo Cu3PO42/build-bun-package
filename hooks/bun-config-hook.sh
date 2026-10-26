@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+
 bunConfigHook() {
     echo "Executing bunConfigHook"
     pushd "${bunRoot:-.}" >/dev/null
@@ -21,10 +22,12 @@ bunConfigHook() {
     elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
     else echo 'bunConfigHook: missing bun.lock or bun.lockb' >&2; exit 1
     fi
+
     if ! cmp -s "$lockfile" "$bunDeps/.nix-bun/$lockfile"; then
         echo 'bunConfigHook: lockfile differs from cache; regenerate bunDepsHash with lib.fakeHash or update bunDeps' >&2
         exit 1
     fi
+
     # Keep Bun configuration and caches out of the builder's real home.
     # Disable the global store to avoid links outside the installed package.
     export HOME="$TMPDIR/home" BUN_CONFIG_NO_CLEAR_TERMINAL=1 BUN_INSTALL_GLOBAL_STORE=0
@@ -46,7 +49,9 @@ bunConfigHook() {
         chmod -R u+w node_modules
         patchShebangs node_modules
     fi
+
     popd >/dev/null
     echo "Finished bunConfigHook"
 }
+
 postPatchHooks+=(bunConfigHook)
