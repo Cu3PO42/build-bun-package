@@ -15,6 +15,21 @@ let
     doInstallCheck = true;
     installCheckPhase = ''grep -q 'lifecycle mutation' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"'';
   };
+  native-addon = pkgs.buildBunPackage {
+    pname = "bun-native-example";
+    version = "1";
+    src = ./fixtures/native;
+    makeCacheWritable = true;
+    bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
+    # With local headers, even an unusable download URL must work.
+    env.npm_config_disturl = "http://127.0.0.1:9";
+    doInstallCheck = true;
+    installCheckPhase = ''
+      test "$("$out/bin/bun-native-example")" = 42
+      test "$(node -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
+    '';
+  };
+
   workspace = pkgs.buildBunPackage {
     pname = "bun-workspace-example";
     version = "1.0.0";
@@ -37,6 +52,33 @@ in
   inherit example workspace;
 
   inherit lifecycle-writable;
+
+  inherit native-addon;
+
+  native-explicit-install = native-addon.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    postPatch = ''
+      jq '.scripts.install = "node-gyp rebuild && touch built-by-script"' native/package.json > native/package.json.new
+      mv native/package.json.new native/package.json
+    '';
+    postInstallCheck = ''
+      test -f "$out/lib/node_modules/bun-native-example/node_modules/native-answer/built-by-script"
+    '';
+  });
+
+  native-untrusted = native-addon.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    postPatch = ''
+      jq '.trustedDependencies = []' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    dontBunBuild = true;
+    installPhase = ''
+      test ! -e node_modules/native-answer/build/Release/answer.node
+      mkdir -p "$out"
+    '';
+    doInstallCheck = false;
+  });
 
   trusted-lifecycle = pkgs.buildBunPackage {
     pname = "bun-trusted-lifecycle";

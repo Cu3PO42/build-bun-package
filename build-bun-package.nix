@@ -2,12 +2,14 @@
   lib,
   stdenv,
   bun,
+  nodejs,
   fetchBunDeps,
   bunHooks,
 }:
 
 let
   defaultBun = bun;
+  defaultNodejs = nodejs;
 in
 lib.extendMkDerivation {
   constructDrv = stdenv.mkDerivation;
@@ -34,7 +36,10 @@ lib.extendMkDerivation {
         assert lib.assertMsg (lib.versionAtLeast finalAttrs.bun.version "1.4.4")
           "buildBunPackage requires Bun >= 1.4.4";
         finalAttrs.bun;
-      selectedHooks = bunHooks.override { bun = selectedBun; };
+      selectedHooks = bunHooks.override {
+        bun = selectedBun;
+        nodejs = finalAttrs.nodejs;
+      };
       internalInputs = [
         selectedBun
         (
@@ -108,6 +113,7 @@ lib.extendMkDerivation {
         bunPruneFlags
         ;
       bun = args.bun or defaultBun;
+      nodejs = args.nodejs or defaultNodejs;
       bunDeps = deps;
       bunBuildScript = args.bunBuildScript or "build";
       nativeBuildInputs = nativeBuildInputs ++ internalInputs;

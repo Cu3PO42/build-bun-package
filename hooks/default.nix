@@ -5,10 +5,23 @@
   installShellFiles,
   jq,
   bun,
+  nodejs,
+  srcOnly,
+  stdenv,
+  cctools,
 }:
 {
   bunConfigHook = makeSetupHook {
     name = "bun-config-hook";
+    propagatedBuildInputs = [
+      nodejs
+      nodejs.python
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [ cctools ];
+    substitutions = {
+      nodeSrc = srcOnly nodejs;
+      nodeGyp = "${nodejs}/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js";
+    };
     meta.license = lib.licenses.mit;
   } ./bun-config-hook.sh;
   bunBuildHook = makeSetupHook {

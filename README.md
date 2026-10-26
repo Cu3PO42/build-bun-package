@@ -91,6 +91,7 @@ pkgs.buildBunPackage {
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bun` | overlay Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
+| `nodejs` | Nixpkgs Node.js | Node.js and matching headers used by lifecycle scripts and node-gyp |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunRoot` | `"."` | Project directory relative to the unpacked source root |
@@ -103,6 +104,7 @@ pkgs.buildBunPackage {
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
 | `bunPruneFlags` | `[]` | Extra arguments to `bun prune` |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
+| `preBunInstall`, `postBunInstall` | unset | Hooks around offline installation; the pre-hook can patch a writable cache before lifecycle scripts |
 | `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage |
 | `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
 | `dontBunInstall` | `false` | Disable the default install phase |
@@ -124,13 +126,21 @@ passing package build and install phases into the fixed-output fetch. The hook
 flags are derivation attributes; Nix passes list-valued flags as shell arrays.
 Only put options accepted by all five commands in `bunFlags`; use the
 command-specific flags for other options. `bunBuildFlags` are script arguments,
-so Bun options belong in `bunFlags`. Add compilers, `pkg-config`,
-Node.js, Python, or other lifecycle script tools through the usual inputs. Bun
-executes trusted dependency lifecycle scripts during `bun install`, so a
-separate `npm rebuild` would run them again. Native addons may invoke node-gyp:
-provide a compatible Node.js, Python, compiler and local Node headers, and
-configure node-gyp for those headers so it does not download them during the
-sandboxed build. This helper does not configure node-gyp automatically.
+so Bun options belong in `bunFlags`. The config hook supplies Node.js, Python, the Nixpkgs-patched node-gyp and local
+Node headers. The builder uses a compiler-enabled stdenv, with Darwin cctools
+supplied by the hook. Override `nodejs` to choose a compatible Node.js version;
+add package-specific libraries and tools through the usual inputs. Bun loads
+Node-API addons; addons tied to V8 internals may require changes to work in Bun.
+
+Bun 1.4.4 has no `rebuild` command. An install with `--ignore-scripts` followed
+by a normal install **does not replay dependency scripts**. `bun pm trust`
+operates on untrusted dependencies and changes the trust configuration; using
+`npm rebuild` indiscriminately would run scripts Bun blocks. We therefore run
+Bun's permitted scripts in the initial install and patch shebangs afterward.
+This differs from npm: a lifecycle script that executes a dependency with a
+hardcoded `/bin/bash` or `/usr/bin/env` shebang can fail before patching. Such
+packages need an explicit fix, for example `makeCacheWritable = true` and a
+`preBunInstall` hook that patches the cache.
 
 For monorepos, fetch and install dependencies from the workspace root. Run workspace scripts through a custom `buildPhase` when you need workspace-specific Bun options. Workspace links work
 during the build; use a custom `installPhase` to install the intended workspace

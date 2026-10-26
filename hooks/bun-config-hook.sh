@@ -28,9 +28,17 @@ bunConfigHook() {
         exit 1
     fi
 
-    # Keep Bun configuration and caches out of the builder's real home.
-    # Disable the global store to avoid links outside the installed package.
-    export HOME="$TMPDIR/home" BUN_CONFIG_NO_CLEAR_TERMINAL=1 BUN_INSTALL_GLOBAL_STORE=0
+    # Keep user configuration and auto-installed tools out of the builder's home.
+    export HOME="$TMPDIR/home"
+    # Keep build logs readable when Bun runs scripts with terminal control codes.
+    export BUN_CONFIG_NO_CLEAR_TERMINAL=1
+    # The global store creates links outside node_modules that cannot be shipped.
+    export BUN_INSTALL_GLOBAL_STORE=0
+    # Bun's node-gyp shim otherwise runs `bun x node-gyp`, which downloads a tool.
+    # Nixpkgs' bundled node-gyp also carries the Darwin build-tool patches.
+    export npm_config_node_gyp="@nodeGyp@"
+    # Use headers matching the supplied Node.js; node-gyp must not fetch them.
+    export npm_config_nodedir="@nodeSrc@"
     mkdir -p "$HOME"
     export BUN_INSTALL_CACHE_DIR="$bunDeps"
     if [[ -n ${makeCacheWritable-} ]]; then
@@ -39,7 +47,13 @@ bunConfigHook() {
         chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
     fi
 
-    # Bun runs permitted lifecycle scripts during install; no separate rebuild is needed.
+    runHook preBunInstall
+
+    # Unlike npm, Bun has no rebuild command. A second install after
+    # --ignore-scripts does not replay trusted dependency scripts either.
+    # Keep Bun's trust and dependency ordering by running scripts in this install.
+    # Packages that need shebang fixes before scripts run must be patched in
+    # the source/cache before this command (see README.md).
     if ! bun install ${bunFlags-} "${bunFlagsArray[@]}" --offline --frozen-lockfile --backend copyfile ${bunInstallFlags-} "${bunInstallFlagsArray[@]}"; then
         echo 'bunConfigHook: offline install failed; check cache contents and lockfile, or try makeCacheWritable = true' >&2
         exit 1
@@ -49,6 +63,8 @@ bunConfigHook() {
         chmod -R u+w node_modules
         patchShebangs node_modules
     fi
+
+    runHook postBunInstall
 
     popd >/dev/null
     echo "Finished bunConfigHook"

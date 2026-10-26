@@ -1,0 +1,9 @@
+{
+  "name": "bun-native-example",
+  "version": "1.0.0",
+  "dependencies": { "native-answer": "file:./native" },
+  "trustedDependencies": ["native-answer"],
+  "scripts": { "build": "bun build ./cli.js --target=bun --external=native-answer --outdir=dist" },
+  "bin": { "bun-native-example": "dist/cli.js" },
+  "files": ["dist"]
+}
