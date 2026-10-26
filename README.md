@@ -174,6 +174,23 @@ its `version`. If selecting another Bun, use
 `pkgs.bunNodeGypHook.override { bun = myBun; }` alongside `bun = myBun` in the
 builder. Bun supports Node-API addons; V8-specific addons may require changes.
 
+The same hook works in development shells:
+
+```nix
+pkgs.mkShell {
+  packages = [ pkgs.bunNodeGypHook ];
+}
+```
+
+This supplies Bun, the fallback `node` command, node-gyp, Python and local header
+configuration; `mkShell` supplies the compiler. Continue using `bun install`
+normally, or run `node-gyp rebuild` directly from a package with `binding.gyp`.
+Commands inside `.gyp` files can also invoke `node`. Prefer this setup when you
+want a Nix-managed native toolchain: Bun's automatic fallback can fetch node-gyp
+but does not supply the complete pinned compiler/Python/header environment.
+For a Bun shell with just the `node` fallback and no native toolchain, use
+`pkgs.bunHooks.bunNodeFallbackHook` instead.
+
 Bun 1.4.4 has no `rebuild` command. An install with `--ignore-scripts` followed
 by a normal install **does not replay dependency scripts**. `bun pm trust`
 operates on untrusted dependencies and changes the trust configuration; using

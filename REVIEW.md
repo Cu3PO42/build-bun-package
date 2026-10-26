@@ -108,6 +108,14 @@ checks guard the runtime closures and additionally reject node-gyp in the
 ordinary example's closure. These checks are separate from the explicit Node.js
 compatibility tests, which intentionally request a genuine Node.js runtime.
 
+The native hook is also self-contained in `mkShell`: it propagates the shared
+Bun/`node` fallback setup without registering package build/install phases. An
+actual `nix develop` session containing only `bunNodeGypHook` successfully built
+and loaded the C addon, including a `.gyp` command invoking `node`. The automated
+`standalone-node-gyp-hook` check reproduces that case with `runCommandCC`, without
+the config/build/install hooks. This catches the gap where Bun's temporary
+child-script shim does not cover direct `node-gyp` use from a shell.
+
 ## Workspace installation
 
 The installer preserves the project-relative layout and packs linked local
@@ -144,7 +152,7 @@ unnecessary here.
 ## Validation and remaining limits
 
 Validation includes builds on `aarch64-darwin`, `aarch64-linux`, and
-`x86_64-linux`: 42 checks per system, 126 total. Both Linux suites ran through
+`x86_64-linux`: 43 checks per system, 129 total. Both Linux suites ran through
 the configured `ssh://nix-builder`,
 whose sandbox setting is `relaxed`; these ordinary derivations do not request a
 sandbox exemption. Native compilation/loading, source-independent workspace
