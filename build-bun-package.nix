@@ -25,6 +25,7 @@ lib.extendMkDerivation {
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
       nodejs ? null,
+      nodeGyp ? false,
       bunWorkspace ? null,
       bunFlags ? [ ],
       bunFetchFlags ? [ ],
@@ -41,6 +42,7 @@ lib.extendMkDerivation {
         finalAttrs.bun;
       selectedHooks = bunHooks.override {
         bun = selectedBun;
+        nodejs = finalAttrs.nodejs;
       };
       hook =
         name: if (finalAttrs.${name} or null) != null then finalAttrs.${name} else selectedHooks.${name};
@@ -85,6 +87,7 @@ lib.extendMkDerivation {
         bunDepsNativeBuildInputs
         bunDepsImpureEnvVars
         nodejs
+        nodeGyp
         bunWorkspace
         bunFlags
         bunFetchFlags
@@ -104,7 +107,8 @@ lib.extendMkDerivation {
           (hook "bunBuildHook")
           (hook "bunInstallHook")
         ]
-        ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs;
+        ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs
+        ++ lib.optional finalAttrs.nodeGyp selectedHooks.bunNodeGypHook;
       passthru = {
         updateScript = nix-update-script {
           extraArgs = [

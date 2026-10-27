@@ -69,7 +69,7 @@ let
     pname = "bun-native-example";
     version = "1";
     src = ./fixtures/native;
-    nativeBuildInputs = [ pkgs.bunNodeGypHook ];
+    nodeGyp = true;
     makeCacheWritable = true;
     bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
     # Both node-gyp and ordinary node commands must run with Bun.
@@ -218,6 +218,16 @@ in
         mkdir -p "$out"
         cp build/Release/answer.node "$out/"
       '';
+
+  native-node-gyp = native-addon.overrideAttrs (_: {
+    nodejs = pkgs.nodejs;
+    preBuild = ''
+      test "$(command -v node)" = '${pkgs.nodejs}/bin/node'
+      node -e 'if (process.versions.bun) process.exit(1)'
+      test "$npm_config_target" = '${pkgs.nodejs.version}'
+      test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
+    '';
+  });
 
   native-node-compatibility =
     pkgs.runCommand "bun-native-node-compatibility"

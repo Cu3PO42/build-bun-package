@@ -11,8 +11,13 @@
   python3,
   stdenv,
   cctools,
+  srcOnly,
+  nodejs ? null,
 }:
 let
+  nodeGyp = bunNodeGyp.override { inherit bun nodejs; };
+  nodeHeaders = if nodejs == null then bunNodeHeaders else srcOnly nodejs;
+  nodeVersion = if nodejs == null then bunNodeHeaders.version else nodejs.version;
   bunNodeShim = runCommand "bun-node-shim-${bun.version}" { } ''
     mkdir -p "$out/bin"
     ln -s ${bun}/bin/bun "$out/bin/node"
@@ -28,15 +33,15 @@ in
   bunNodeGypHook = makeSetupHook {
     name = "bun-node-gyp-hook";
     propagatedBuildInputs = [
-      (bunNodeGyp.override { inherit bun; })
+      nodeGyp
       bunNodeFallbackHook
       python3
     ]
+    ++ lib.optional (nodejs != null) nodejs
     ++ lib.optionals stdenv.hostPlatform.isDarwin [ cctools ];
     substitutions = {
-      nodeGyp = lib.getExe (bunNodeGyp.override { inherit bun; });
-      nodeHeaders = bunNodeHeaders;
-      nodeVersion = bunNodeHeaders.version;
+      nodeGyp = lib.getExe nodeGyp;
+      inherit nodeHeaders nodeVersion;
       python = lib.getExe python3;
     };
     meta.license = lib.licenses.mit;

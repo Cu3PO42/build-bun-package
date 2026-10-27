@@ -212,7 +212,8 @@ all-platform dependency cache is approximately 1.54 GiB (NAR size).
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bun` | provided Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
-| `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility; otherwise `node` runs Bun |
+| `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility and node-gyp; selects matching Node sources when `nodeGyp` is enabled |
+| `nodeGyp` | `false` | Add standalone node-gyp, Python and local headers; run with Bun by default or the selected `nodejs` |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunDepsNativeBuildInputs` | `[]` | Tools/setup hooks explicitly needed for fetching or source preparation, e.g. Git or jq |
@@ -269,12 +270,27 @@ fallback behavior. For build scripts that need real Node.js, set
 `nodejs = pkgs.nodejs-slim;` or add a Node.js package to `nativeBuildInputs`.
 
 Prebuilt Node-API addons do not need an additional hook. To compile dependencies
-using node-gyp, add the optional toolchain:
+using node-gyp, enable the optional toolchain:
 
 ```nix
-nativeBuildInputs = [ pkgs.bunNodeGypHook ];
+nodeGyp = true;
 makeCacheWritable = true; # when installation needs to modify the cache
 ```
+
+The flag adds `bunHooks.bunNodeGypHook`, configured with the builder's selected
+Bun and Node.js. To run node-gyp with genuine Node.js and compile against its
+matching sources instead, use:
+
+```nix
+nodeGyp = true;
+nodejs = pkgs.nodejs; # or pkgs.nodejs-slim
+```
+
+This selects Node.js for node-gyp's wrapper and `node` commands in the build;
+installed application wrappers still use Bun. Merely adding Node.js to
+`nativeBuildInputs` changes `PATH`, but does not select node-gyp's runtime or
+headers. For independent hooks, use
+`pkgs.bunNodeGypHook.override { nodejs = pkgs.nodejs; }`.
 
 `bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
 `node-gyp` package executed with Bun. The tool and its dependencies are fetched
@@ -295,7 +311,8 @@ check verifies that these versions match. To use another header set or Python,
 override the native hook's `bunNodeHeaders` or `python3` argument; a custom
 header derivation must expose its `version`. If selecting another Bun, use
 `pkgs.bunNodeGypHook.override { bun = myBun; }` alongside `bun = myBun` in the
-builder. Bun supports Node-API addons; V8-specific addons may require changes.
+builder. With `nodeGyp = true`, the builder selects the hook's Bun automatically.
+Bun supports Node-API addons; V8-specific addons may require changes.
 
 To update Bun and its matching headers, run from the repository root:
 

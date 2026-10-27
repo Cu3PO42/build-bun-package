@@ -3,8 +3,8 @@
 {
   bun = callPackage ./bun.nix { };
   fetchBunDeps = callPackage ./fetch-bun-deps.nix { };
-  bunHooks = callPackage ./hooks { };
-  bunNodeGyp = callPackage ./node-gyp.nix { };
+  bunHooks = callPackage ./hooks { nodejs = null; };
+  bunNodeGyp = callPackage ./node-gyp.nix { nodejs = null; };
   bunNodeHeaders = callPackage ./node-headers.nix { };
   # Preserve callPackage overrides on the public alias (e.g. custom headers).
   bunNodeGypHook = callPackage (
@@ -13,6 +13,7 @@
       bunNodeGyp,
       bunNodeHeaders,
       python3,
+      nodejs ? null,
     }:
     (callPackage ./hooks {
       inherit
@@ -20,8 +21,9 @@
         bunNodeGyp
         bunNodeHeaders
         python3
+        nodejs
         ;
     }).bunNodeGypHook
-  ) { };
+  ) { nodejs = null; };
   buildBunPackage = callPackage ./build-bun-package.nix { };
 }

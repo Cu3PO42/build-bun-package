@@ -4,10 +4,12 @@
   fetchurl,
   makeWrapper,
   bun,
+  nodejs ? null,
 }:
 let
   # The upstream tarball does not bundle its dependencies. Pin each archive
   # directly; this small, flat closure needs no package-manager bootstrap.
+  runtime = if nodejs == null then bun else nodejs;
   packages = lib.importJSON ./node-gyp/packages.json;
   archive =
     name:
@@ -37,12 +39,12 @@ stdenvNoCC.mkDerivation {
         tar -xzf ${archive name} -C "$packageOut/node_modules/"${lib.escapeShellArg name} --strip-components=1
       '') (builtins.removeAttrs packages [ "node-gyp" ])
     )}
-    makeWrapper ${lib.getExe bun} "$out/bin/node-gyp" \
+    makeWrapper ${lib.getExe runtime} "$out/bin/node-gyp" \
       --add-flags "$packageOut/bin/node-gyp.js"
     runHook postInstall
   '';
   meta = {
-    description = "Standalone node-gyp running with Bun";
+    description = "Standalone node-gyp running with ${if nodejs == null then "Bun" else "Node.js"}";
     homepage = "https://github.com/nodejs/node-gyp";
     license = lib.licenses.mit;
     mainProgram = "node-gyp";

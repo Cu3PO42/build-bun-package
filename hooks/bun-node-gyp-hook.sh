@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
 # Bun's node-gyp shim otherwise invokes `bun x node-gyp`, downloading a tool.
-# This wrapper runs standalone node-gyp with Bun, without npm or Node.js.
+# This wrapper runs pinned standalone node-gyp with the selected runtime.
 export npm_config_node_gyp="@nodeGyp@"
 # Use local headers and their explicit target version, independently of the
 # Node.js compatibility version reported by the selected Bun runtime.
