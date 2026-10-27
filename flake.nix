@@ -1,7 +1,7 @@
 {
   description = "Build Bun projects with an offline, fixed-output dependency cache";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/3ec636362e1816bc2f0888fa0fa2c69f1bc9e504";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
     { self, nixpkgs }:
@@ -14,32 +14,24 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in
     {
-      overlays.default = final: prev: {
-        bun = final.callPackage ./bun.nix { };
-        fetchBunDeps = final.callPackage ./fetch-bun-deps.nix { };
-        bunHooks = final.callPackage ./hooks { };
-        bunNodeGyp = final.callPackage ./node-gyp.nix { };
-        bunNodeHeaders = final.callPackage ./node-headers.nix { };
-        bunNodeGypHook = final.callPackage ./hooks/node-gyp.nix { };
-        buildBunPackage = final.callPackage ./build-bun-package.nix { };
-      };
+      overlays.default = final: _prev: import ./package-set.nix { inherit (final) callPackage; };
       legacyPackages = forAllSystems (
         system:
-        import nixpkgs {
-          inherit system;
-          overlays = [ self.overlays.default ];
-        }
+        let pkgs = import nixpkgs { inherit system; };
+        in nixpkgs.lib.makeScope pkgs.newScope (
+          scope: import ./package-set.nix { inherit (scope) callPackage; }
+        )
       );
-      formatter = forAllSystems (system: self.legacyPackages.${system}.nixfmt);
-      checks = forAllSystems (system: import ./tests { pkgs = self.legacyPackages.${system}; });
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+      checks = forAllSystems (system: import ./tests {
+        pkgs = nixpkgs.legacyPackages.${system} // self.legacyPackages.${system};
+      });
       packages = forAllSystems (system: {
         inherit (self.legacyPackages.${system}) bun;
-        example = self.legacyPackages.${system}.callPackage ./tests/example.nix { };
         opencode = self.legacyPackages.${system}.callPackage ./tests/opencode.nix { };
         swagger-typescript-api =
           self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
             { };
-        default = self.packages.${system}.example;
       });
     };
 }
