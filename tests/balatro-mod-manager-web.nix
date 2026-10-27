@@ -22,7 +22,7 @@ buildBunPackage (finalAttrs: {
 
   bunDepsHash = {
     "aarch64-darwin" = "sha256-8FjrpGYJJjJxipvrMGPEBv4QeS2jBnAweqn2E5vCfrs=";
-    "aarch64-linux" = lib.fakeHash;
+    "aarch64-linux" = "sha256-l3STunzD5Zzs1+QBAuGO+Jl73iCX8ty382Qn4gsWb7Q=";
     "x86_64-linux" = "sha256-wyWcKsrYOuekpjwZCGeUizyJuVx/VZeOEtuExCNGdfc=";
   }.${stdenv.hostPlatform.system};
   bunFetchFlags = [
