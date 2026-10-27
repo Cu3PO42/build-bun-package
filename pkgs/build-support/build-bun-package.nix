@@ -25,6 +25,7 @@ lib.extendMkDerivation {
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
       nodejs ? null,
+      bunRuntime ? finalAttrs.bun,
       nodeGyp ? false,
       bunWorkspace ? null,
       bunRunScripts ? false,
@@ -44,6 +45,7 @@ lib.extendMkDerivation {
       selectedHooks = bunHooks.override {
         bun = selectedBun;
         nodejs = finalAttrs.nodejs;
+        bunRuntime = finalAttrs.bunRuntime;
       };
       hook =
         name: if (finalAttrs.${name} or null) != null then finalAttrs.${name} else selectedHooks.${name};
@@ -88,6 +90,7 @@ lib.extendMkDerivation {
         bunDepsNativeBuildInputs
         bunDepsImpureEnvVars
         nodejs
+        bunRuntime
         nodeGyp
         bunWorkspace
         bunRunScripts

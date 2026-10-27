@@ -13,6 +13,7 @@
   cctools,
   srcOnly,
   nodejs ? null,
+  bunRuntime ? bun,
 }:
 let
   nodeGyp = bunNodeGyp.override { inherit bun nodejs; };
@@ -71,6 +72,9 @@ in
       makeWrapper
       installShellFiles
     ];
-    substitutions = { inherit jq bun; };
+    substitutions = {
+      inherit jq;
+      runtime = lib.getExe bunRuntime;
+    };
   } ./bun-install-hook.sh;
 }

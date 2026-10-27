@@ -15,7 +15,7 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 - Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
   There is no equivalent to `npmRebuildFlags` since a similar command does not exist for Bun and we work around shebang issues seperately.
 - By default, Bun is used to execute any scripts. If you want to keep Node.js, add it as a `nativeBuildInput`.
-- The default install phase will also use Bun to run your scripts.
+- The default install phase creates executable wrappers using Bun. Set `bunRuntime = pkgs.nodejs;` to use Node.js instead.
 - Workspace selection uses a directory instead of a package name: `bunWorkspace` is relative to `bunRoot`, i.e. the folder in which the lockfile is located.
   Each Bun hook enters its required directory and restores the previous working directory, so custom phases must enter `bunRoot` themselves when needed.
 - Obviously all names and parameters use `bun` instead of `npm` :)
@@ -55,7 +55,8 @@ the dependencies, run `nix build .#my-app.bunDeps`.
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
 and production dependencies. Executables declared in `package.json` receive
-Bun wrappers; declared manual pages are installed too. Set `dontBunBuild = true`
+Bun wrappers by default; set `bunRuntime = pkgs.nodejs;` for Node.js wrappers.
+Declared manual pages are installed too. Set `dontBunBuild = true`
 for a package without a build script. Set `dontBunPrune = true` to retain dev
 dependencies in the default installation.
 
@@ -124,7 +125,20 @@ the build hook runs independently, and packing always skips scripts.
 The default runtime is Bun, including a fallback `node` command when none is
 already on `PATH`. For scripts that need genuine Node.js, set
 `nodejs = pkgs.nodejs-slim;` or add Node.js to `nativeBuildInputs`.
-Installed application wrappers still use Bun.
+Select the runtime for installed application wrappers independently with
+`bunRuntime = pkgs.nodejs-slim;`. It defaults to the selected `bun` package and
+does not change the build or lifecycle runtime. To use Node.js for both:
+
+```nix
+nodejs = pkgs.nodejs-slim;
+bunRuntime = pkgs.nodejs-slim;
+```
+
+Bun still fetches, installs, packs, and prunes dependencies, and the build hook
+still invokes `bun run`. That command respects Node.js shebangs and `node`
+commands using the build's `PATH`. Explicit `bun` commands and direct source-file
+execution use Bun; `--bun` or `run.bun = true` in `bunfig.toml` can also force Bun
+for scripts even when Node.js is available.
 
 Prebuilt Node-API addons need no additional hook. To compile dependencies with
 node-gyp, enable the optional toolchain:
@@ -278,7 +292,8 @@ These are Nix derivation attributes. With the overlay, the builder is
 
 | Attribute | Default | Purpose |
 | --- | --- | --- |
-| `bun` | provided Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
+| `bun` | provided Bun | Bun package used for fetching and hooks (>= 1.4.4), and for executable wrappers by default |
+| `bunRuntime` | selected `bun` | Runtime package for installed executable wrappers, e.g. `pkgs.nodejs-slim`; independent of the build/lifecycle runtime |
 | `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility and node-gyp; selects matching Node sources when `nodeGyp` is enabled |
 | `nodeGyp` | `false` | Add standalone node-gyp, Python and local headers; run with Bun by default or the selected `nodejs` |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
@@ -337,7 +352,8 @@ Override `bunNodeGypHook`'s `bunNodeHeaders` or `python3` argument for another
 header set or Python; custom headers must expose `version`. When using the
 hook independently with another Bun, override its `bun` argument too.
 `buildBunPackage` selects matching hooks automatically through its `bun` and
-`nodejs` attributes.
+`nodejs` attributes. To select the installed runtime when using hooks directly,
+use `(pkgs.bunHooks.override { bunRuntime = pkgs.nodejs; }).bunInstallHook`.
 
 ## Implementation notes and limitations
 

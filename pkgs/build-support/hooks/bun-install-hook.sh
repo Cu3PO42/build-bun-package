@@ -10,7 +10,7 @@ bunInstallExecutables() {
     while IFS= read -r entry; do
         binName=$(@jq@/bin/jq -r '.key' <<< "$entry")
         binPath=$(@jq@/bin/jq -r '.value' <<< "$entry")
-        makeWrapper @bun@/bin/bun "$out/bin/$binName" \
+        makeWrapper @runtime@ "$out/bin/$binName" \
             --add-flags "$(printf '%q' "$packageOut/$binPath")" "${wrapperFlags[@]}"
     done < <(@jq@/bin/jq -c 'if (.bin | type) == "string" then {key: (.name | split("/") | last), value: .bin} elif (.bin | type) == "object" then .bin | to_entries[] else empty end' "$packageJson")
 }
