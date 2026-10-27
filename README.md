@@ -280,8 +280,11 @@ makeCacheWritable = true; # when installation needs to modify the cache
 ```
 
 `bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
-`node-gyp` package executed with Bun. Neither Node.js nor npm is used to build or
-run that tool. Darwin receives cctools and the same deterministic Xcode-version
+`node-gyp` package executed with Bun. The tool and its dependencies are fetched
+as individually hashed npm archives; no Bun lockfile, Node.js, or npm is needed
+to build it. Its small, flat dependency closure is pinned in
+[`node-gyp/packages.json`](./node-gyp/packages.json); updates must keep all
+transitive dependencies and their compatible versions in sync. Darwin receives cctools and the same deterministic Xcode-version
 fallback used by Nixpkgs' bundled gyp. The builder's stdenv supplies the compiler;
 add package-specific libraries through the usual inputs. The hook sets
 `npm_config_node_gyp`, `npm_config_nodedir`, `npm_config_target` and

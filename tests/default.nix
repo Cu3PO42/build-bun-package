@@ -750,12 +750,6 @@ in
         '';
       });
 
-  node-gyp-dependency-cache = fetchForTest {
-    name = "bun-node-gyp-deps-${pkgs.stdenv.hostPlatform.system}";
-    src = ../node-gyp;
-    hash = pkgs.bunNodeGyp.bunDeps.outputHash;
-  };
-
   catalog-dependency-cache = fetchForTest {
     name = "bun-catalog-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/catalogs;
