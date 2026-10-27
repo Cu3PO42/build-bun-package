@@ -43,7 +43,7 @@ stdenvNoCC.mkDerivation (
         else echo "fetchBunDeps: a committed bun.lock or bun.lockb is required" >&2; exit 1
         fi
         # Refuse manifest/lockfile drift even though fetching never saves a lock.
-        # Fetch every optional platform variant for a platform-independent cache.
+        # Fetch optional platform variants supported by Bun for a platform-independent cache.
         bun pm fetch ${lib.escapeShellArgs finalAttrs.bunFlags} "''${bunFlagsArray[@]}" --frozen-lockfile --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs finalAttrs.bunFetchFlags} "''${bunFetchFlagsArray[@]}"
         rm -rf "$out/.tmp"
         while IFS= read -r -d "" link; do
