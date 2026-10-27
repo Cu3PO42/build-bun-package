@@ -7,6 +7,8 @@
   installShellFiles,
   makeWrapper,
   openssl,
+  runCommand,
+  bunNodeHeaders,
   writeShellScript,
   curl,
   jq,
@@ -97,6 +99,16 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       for platform in ${lib.escapeShellArgs finalAttrs.meta.platforms}; do
         update-source-version "bun" "$NEW_VERSION" --ignore-same-version --source-key="sources.$platform"
       done
+    '';
+    tests.node-headers = runCommand "bun-node-headers-version" { } ''
+      actual=$(${lib.getExe finalAttrs.finalPackage} -p process.versions.node)
+      expected=${lib.escapeShellArg bunNodeHeaders.version}
+      if [ "$actual" != "$expected" ]; then
+        echo "Bun reports Node $actual, but bunNodeHeaders provides $expected; run bun.updateScript" >&2
+        exit 1
+      fi
+      test -f ${bunNodeHeaders}/include/node/node_api.h
+      touch "$out"
     '';
   };
   meta = {
