@@ -292,11 +292,12 @@ headers. For independent hooks, use
 `pkgs.bunNodeGypHook.override { nodejs = pkgs.nodejs; }`.
 
 `bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
-`node-gyp` package executed with Bun. The tool and its dependencies are fetched
-as individually hashed npm archives; no Bun lockfile, Node.js, or npm is needed
-to build it. Its small, flat dependency closure is pinned in
-[`node-gyp/packages.json`](./node-gyp/packages.json); updates must keep all
-transitive dependencies and their compatible versions in sync.
+`node-gyp` package executed with Bun by default. It uses `buildBunPackage` and
+a committed [`bun.lock`](./node-gyp/bun.lock) to resolve and install its
+transitive dependencies. Node.js and npm are unnecessary for building the tool.
+To update it, change the manifest dependency, regenerate the lockfile with Bun,
+and recalculate `bunDepsHash`. This keeps dependency resolution with Bun rather
+than maintaining a separate list of archives and a custom dependency installer.
 Darwin receives cctools and the same deterministic Xcode-version
 fallback used by Nixpkgs' bundled gyp. The builder's stdenv supplies the compiler;
 add package-specific libraries through the usual inputs. The hook sets
@@ -446,7 +447,7 @@ compilation is not supported.
 The checks exercise direct and writable caches, lifecycle mutations, trusted
 scripts using Bun as `node`, native Node-API addons built with Bun or Node.js
 (implicit, explicit and manually selected node-gyp builds), standalone node-gyp
-with pinned archives, runtime closure
+cache validation, runtime closure
 checks without Node.js/npm, persistent shebangs, explicit Node.js precedence,
 patched dependencies, independent and replacement hooks, custom phases,
 nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with

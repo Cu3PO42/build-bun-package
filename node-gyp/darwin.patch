@@ -1,5 +1,5 @@
---- a/gyp/pylib/gyp/xcode_emulation.py
-+++ b/gyp/pylib/gyp/xcode_emulation.py
+--- a/node_modules/node-gyp/gyp/pylib/gyp/xcode_emulation.py
++++ b/node_modules/node-gyp/gyp/pylib/gyp/xcode_emulation.py
 @@ -1495,24 +1495,8 @@ def XcodeVersion():
      global XCODE_VERSION_CACHE
      if XCODE_VERSION_CACHE:
