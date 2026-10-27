@@ -12,14 +12,21 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 
 ## Differences from `buildNpmPackage`
 
-- By default no install scripts are run; if they are necessary set `bunRunScripts = true`
+- Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
+  There is no equivalent to `npmRebuildFlags` since a similar command does not exist for Bun and we work around shebang issues seperately.
+- By default, Bun is used to execute any scripts. If you want to keep Node.js, add it as a `nativeBuildInput`.
+- The default install phase will also use Bun to run your scripts.
+- Workspace selection uses a directory instead of a package name: `bunWorkspace` is relative to `bunRoot`, i.e. the folder in which the lockfile is located.
+  Each Bun hook enters its required directory and restores the previous working directory, so custom phases must enter `bunRoot` themselves when needed.
+- Obviously all names and parameters use `bun` instead of `npm` :)
+
 
 ## AI Disclosure
 
 This code was written primarily by LLMs (mostly GPT-6.1 Sol) under my direction.
 However, all of the code except for tests was reviewed by me (a human).
 
-Beware that any content beyond this line is also written by AI.
+Beware that any content beyond this line is also at least partially written by AI.
 
 -----------------------------
 
@@ -78,6 +85,12 @@ the exact revision recorded only in `flake.lock`.
    excludes packed dependencies, and installs pruned `node_modules` at their
    project-relative paths.
    Bins receive Bun wrappers and declared manual pages are installed.
+
+The dependency cache is a directory rather than a compressed archive, avoiding
+an extra compression/extraction pass and allowing store deduplication. Binary
+caches can compress NAR transfers independently. Bun parses the lockfile itself;
+no separate lockfile parser or npm cache mapper is needed. An empty cache is
+valid for projects with only local dependencies.
 
 A reused `bunDeps` cache must contain matching format metadata and the same
 lockfile. Cache output paths depend on the cache name and content hash, so a Bun upgrade
@@ -264,7 +277,8 @@ configure phase leaving the shell in `bunRoot` must enter it themselves and
 restore the working directory before the next phase.
 
 Source selection, unpack and patch settings are passed explicitly to the
-dependency fetcher. Package `nativeBuildInputs`, `buildInputs`, and `env` are
+dependency fetcher. This allowlist prevents package phases or setup hooks from
+running during fetching or introducing dependency cycles. Package `nativeBuildInputs`, `buildInputs`, and `env` are
 not forwarded. If a shared `postPatch` runs jq, add jq to both
 `nativeBuildInputs` and `bunDepsNativeBuildInputs`; Git dependencies normally
 need Git only in `bunDepsNativeBuildInputs`. For custom fetcher environment or
@@ -470,7 +484,22 @@ duplicate identical Git URLs under two aliases, an explicitly Windows-only optio
 registry, and a fixture combining a pinned Git dependency, an HTTP tarball, and
 a non-default registry. Distinct cache output names and derivation salts force independent platform fetches when
 fetcher inputs change. Run `nix flake check` on each supported system to verify
-the caches and builds, or use the remote-builder command in [REVIEW.md](./REVIEW.md).
+the caches and builds. `nix flake check --all-systems` evaluates other systems
+but does not build their checks on the current host. To build all supported
+systems through configured remote builders, use:
+
+```sh
+nix build --no-link --keep-going --impure --expr '
+  let flake = builtins.getFlake (toString ./.);
+  in builtins.concatLists (map
+    (system: builtins.attrValues flake.checks.${system})
+    (builtins.attrNames flake.checks))
+'
+```
+
+Fresh-fetch checks use `testers.invalidateFetcherByDrvHash` so changed fetcher
+inputs cannot pass by reusing a cached fixed-output result. Changes to the cache
+format also require updating its format marker and expected hashes.
 
 The ordinary build must run with Nix sandboxing enabled to enforce network
 isolation for arbitrary lifecycle/build scripts. Bun's `--offline` governs the
