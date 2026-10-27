@@ -153,13 +153,10 @@ Keep the literal `bunDepsHash` in the package's Nix expression. The updater
 builds `bunDeps` with a blank output hash and replaces the old hash with the
 reported hash. This path was verified with nix-update 1.16.0 against a temporary
 package with an intentionally wrong hash. No separate Bun prefetch tool is
-needed. In Nixpkgs, a package can opt its update script into this behavior:
-
-```nix
-passthru.updateScript = nix-update-script {
-  extraArgs = [ "--custom-dep" "bunDeps" ];
-};
-```
+needed. `buildBunPackage` automatically supplies `passthru.updateScript` using
+`nix-update-script { extraArgs = [ "--custom-dep" "bunDeps" ]; }`.
+A caller-provided `passthru.updateScript` takes precedence; set it to `null`
+to disable the default. Other passthru attributes are preserved.
 
 Automatic detection without that flag would require adding `bunDeps.outputHash`
 to nix-update's evaluation and dependency-hash updater registry. The lower-level

@@ -651,6 +651,17 @@ in
       alternateNode = example.overrideAttrs (_: {
         nodejs = alternateNodejs;
       });
+      customUpdater = example.overrideAttrs (_: {
+        passthru = {
+          updateScript = "custom-update";
+          marker = true;
+        };
+      });
+      noUpdater = pkgs.buildBunPackage {
+        pname = "no-updater";
+        version = "1";
+        passthru.updateScript = null;
+      };
       functional = pkgs.buildBunPackage (final: {
         pname = "functional-bun";
         version = "1";
@@ -668,6 +679,16 @@ in
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
     assert builtins.elem (toString alternateNodejs) (map toString alternateNode.nativeBuildInputs);
     assert example.nodejs == null;
+    assert
+      example.updateScript == pkgs.nix-update-script {
+        extraArgs = [
+          "--custom-dep"
+          "bunDeps"
+        ];
+      };
+    assert customUpdater.updateScript == "custom-update";
+    assert customUpdater.marker;
+    assert noUpdater.updateScript == null;
     assert builtins.elem (toString (pkgs.bunHooks.override { bun = alternateBun; }).bunInstallHook) (
       map toString alternate.nativeBuildInputs
     );

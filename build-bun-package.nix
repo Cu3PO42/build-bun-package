@@ -4,6 +4,7 @@
   bun,
   fetchBunDeps,
   bunHooks,
+  nix-update-script,
 }:
 
 let
@@ -104,6 +105,15 @@ lib.extendMkDerivation {
           (hook "bunInstallHook")
         ]
         ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs;
+      passthru = {
+        updateScript = nix-update-script {
+          extraArgs = [
+            "--custom-dep"
+            "bunDeps"
+          ];
+        };
+      }
+      // (args.passthru or { });
       strictDeps = args.strictDeps or true;
       dontStrip = args.dontStrip or true;
       meta = (args.meta or { }) // {
