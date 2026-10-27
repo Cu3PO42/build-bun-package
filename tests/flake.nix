@@ -5,10 +5,22 @@ let
   equal = overlay scope.bun.version;
   newer = overlay "999.0.0";
   older = overlay "0.0.0";
+  overlaid = import self.inputs.nixpkgs {
+    system = pkgs.stdenv.hostPlatform.system;
+    overlays = [ self.overlays.default ];
+  };
+  overlayPackage = overlaid.buildBunPackage {
+    pname = "bun-overlay-example";
+    version = "1";
+    src = ./fixtures/basic;
+    nodeGyp = true;
+  };
+  expectedBun =
+    if pkgs.lib.versionOlder pkgs.bun.version scope.bun.version then scope.bun else pkgs.bun;
   extended = scope.overrideScope (_final: _prev: { bun = pkgs.bun; });
 in
-assert !(equal ? bun);
-assert !(newer ? bun);
+assert equal.bun.version == scope.bun.version;
+assert newer.bun.version == "999.0.0";
 assert older.bun.version == scope.bun.version;
 assert self.buildBunPackage.${pkgs.stdenv.hostPlatform.system} ? override;
 assert self.fetchBunDeps.${pkgs.stdenv.hostPlatform.system} ? override;
@@ -21,6 +33,11 @@ assert self.bunNodeHeaders.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeHe
 assert scope.buildBunPackage ? override;
 assert scope.fetchBunDeps ? override;
 assert extended.bun == pkgs.bun;
+assert overlaid.bun.drvPath == expectedBun.drvPath;
+assert overlayPackage.bun.drvPath == overlaid.bun.drvPath;
+assert builtins.elem overlaid.bunNodeGypHook.drvPath (
+  map (input: input.drvPath) overlayPackage.nativeBuildInputs
+);
 assert
   (scope.bunNodeGypHook.override { nodejs = pkgs.nodejs; }).drvPath
   == (scope.bunHooks.override { nodejs = pkgs.nodejs; }).bunNodeGypHook.drvPath;

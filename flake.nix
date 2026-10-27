@@ -19,9 +19,11 @@
         let
           packages = import ./pkgs { inherit (final) callPackage lib; };
         in
-        builtins.removeAttrs packages [ "bun" ]
-        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.versionOlder prev.bun.version packages.bun.version) {
-          inherit (packages) bun;
+        packages
+        // {
+          # Keep the attribute names independent of final while Nixpkgs boots.
+          bun =
+            if nixpkgs.lib.versionOlder prev.bun.version packages.bun.version then packages.bun else prev.bun;
         };
       legacyPackages = forAllSystems (
         system:
