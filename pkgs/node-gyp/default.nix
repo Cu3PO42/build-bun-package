@@ -11,9 +11,9 @@ let
 in
 buildBunPackage {
   pname = "bun-node-gyp";
-  version = (lib.importJSON ./node-gyp/package.json).dependencies.node-gyp;
+  version = (lib.importJSON ./source/package.json).dependencies.node-gyp;
   inherit bun;
-  src = ./node-gyp;
+  src = ./source;
   bunDepsHash = "sha256-CB6mi3g6vG2m9Oxj41QMWxY9WMfywpKu9t9yZrJ/+S0=";
   nativeBuildInputs = [ makeWrapper ];
   bunInstallFlags = [ "--ignore-scripts" ];
@@ -21,7 +21,7 @@ buildBunPackage {
 
   # Match Nixpkgs' deterministic Xcode/CLT fallback.
   postBunInstall = lib.optionalString stdenv.hostPlatform.isDarwin ''
-    patch -p1 < ${./node-gyp/darwin.patch}
+    patch -p1 < ${./darwin.patch}
   '';
 
   installPhase = ''

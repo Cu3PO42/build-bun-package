@@ -17,7 +17,7 @@
       overlays.default =
         final: prev:
         let
-          packages = import ./package-set.nix { inherit (final) callPackage lib; };
+          packages = import ./pkgs { inherit (final) callPackage lib; };
         in
         builtins.removeAttrs packages [ "bun" ]
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.versionOlder prev.bun.version packages.bun.version) {
@@ -30,7 +30,7 @@
         in
         nixpkgs.lib.makeScope pkgs.newScope (
           scope:
-          import ./package-set.nix {
+          import ./pkgs {
             inherit (scope) callPackage;
             inherit (pkgs) lib;
           }

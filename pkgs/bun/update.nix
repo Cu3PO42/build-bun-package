@@ -32,7 +32,7 @@ let
         platforms=$(nix-instantiate --eval --strict --json -A bun.meta.platforms | jq --raw-output '.[]')
         for platform in $platforms; do
           update-source-version bun "$version" --ignore-same-version \
-            --source-key="sources.$platform" --file=bun.nix
+            --source-key="sources.$platform" --file=pkgs/bun/default.nix
         done
       fi
 
@@ -41,7 +41,7 @@ let
       bun_path=$(nix-build --no-out-link -A bun)
       node_version=$("$bun_path/bin/bun" -p process.versions.node)
       update-source-version bunNodeHeaders "$node_version" \
-        --source-key=out --file=node-headers.nix
+        --source-key=out --file=pkgs/node-gyp/node-headers.nix
       nix-build --no-out-link -A bun.tests.node-headers
     '';
   };

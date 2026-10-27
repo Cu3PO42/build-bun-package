@@ -293,7 +293,7 @@ headers. For independent hooks, use
 
 `bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
 `node-gyp` package executed with Bun by default. It uses `buildBunPackage` and
-a committed [`bun.lock`](./node-gyp/bun.lock) to resolve and install its
+a committed [`bun.lock`](./pkgs/node-gyp/source/bun.lock) to resolve and install its
 transitive dependencies. Node.js and npm are unnecessary for building the tool.
 To update it, change the manifest dependency, regenerate the lockfile with Bun,
 and recalculate `bunDepsHash`. This keeps dependency resolution with Bun rather
@@ -441,6 +441,22 @@ project root; the build hook additionally enters the selected workspace. Neither
 changes the working directory of later phases. Unlike npm's workspace option,
 `bunWorkspace` is a directory, not a package name or filter pattern. Cross
 compilation is not supported.
+
+## Repository layout
+
+`flake.nix` exposes the public API; `default.nix` is the entry point for Nixpkgs
+maintenance tools. Package wiring lives in [`pkgs/default.nix`](./pkgs/default.nix):
+
+```text
+pkgs/
+  build-support/    buildBunPackage, fetchBunDeps, and shared setup hooks
+  bun/              Bun binary packaging and its update script
+  node-gyp/         Standalone tool, Darwin patch, Node headers, and source lockfile
+```
+
+`tests/` contains fixtures and integration checks. The files under
+`pkgs/node-gyp/source/` are the tool's package manifest and Bun lockfile;
+they are kept separate from its Nix expression and patches.
 
 ## Scope and checks
 
