@@ -58,6 +58,9 @@
           self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
             { };
         kulala-core = self.legacyPackages.${system}.callPackage ./tests/kulala-core.nix { };
+        gitlab-ci-local =
+          self.legacyPackages.${system}.callPackage ./tests/gitlab-ci-local.nix
+            { };
       });
     }
     // nixpkgs.lib.genAttrs [
