@@ -74,10 +74,13 @@ change. Fresh-fetch checks deliberately invalidate test outputs when fetcher
 inputs change, independently of this reuse policy.
 
 By default Bun reads the store cache directly. Set `makeCacheWritable = true`
-when dependency patches or installation need to write to the cache. This copies
-it to `$TMPDIR` first. `bunRunScripts = true` always uses the writable copy and
-patches its shebangs automatically, so it needs no additional
-`makeCacheWritable` setting.
+when dependency patches or installation need to write to the cache. A common
+case is `patchedDependencies`: Bun applies those patches and stores the patched
+package in its global cache ([Bun patch docs](https://bun.com/docs/pm/cli/patch)).
+The `lifecycle-disabled` check covers this case with scripts disabled. This
+setting copies the cache to `$TMPDIR` first. `bunRunScripts = true` always uses
+the writable copy and patches its shebangs automatically, so it needs no
+additional `makeCacheWritable` setting.
 
 The archive applies Bun’s publish-file selection (`files`, ignore rules and
 package metadata) to the current package. It does not pack the dependency graph,

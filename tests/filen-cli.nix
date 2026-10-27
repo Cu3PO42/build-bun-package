@@ -24,6 +24,8 @@ buildBunPackage (finalAttrs: {
   };
 
   bunDepsHash = "sha256-nvT50YsC+MLEkiraxtsRwmoPEkxoVLjqt0nM3WdLwFU=";
+  # Filen patches two dependency packages; Bun materializes those patches in its cache.
+  makeCacheWritable = true;
   bunFlags = [ "--no-progress" ];
   bunInstallFlags = [
     "--force"
@@ -67,7 +69,7 @@ buildBunPackage (finalAttrs: {
   preVersionCheck = ''
     cat > filen-version << EOF
     #!/bin/sh
-    exec $out/bin/filen --skip-update "$@"
+    exec $out/bin/filen --skip-update "\$@"
     EOF
     chmod +x filen-version
     versionCheckProgram="$(pwd)/filen-version"
