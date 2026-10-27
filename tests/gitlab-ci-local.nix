@@ -2,6 +2,7 @@
   lib,
   buildBunPackage,
   fetchFromGitHub,
+  makeWrapper,
   nodejs-slim,
   versionCheckHook,
 }:
@@ -35,6 +36,13 @@ buildBunPackage (finalAttrs: {
   preBuild = ''
     test "$(node -p 'process.versions.node')" = '${nodejs-slim.version}'
     node -e 'if (process.versions.bun) process.exit(1)'
+  '';
+
+  nativeBuildInputs = [ makeWrapper ];
+  postInstall = ''
+    rm "$out/bin/gitlab-ci-local"
+    makeWrapper ${lib.getExe nodejs-slim} "$out/bin/gitlab-ci-local" \
+      --add-flags "$out/lib/node_modules/gitlab-ci-local/dist/index.js"
   '';
 
   nativeInstallCheckInputs = [ versionCheckHook ];
