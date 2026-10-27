@@ -277,6 +277,19 @@ in
     '';
   });
 
+  # Install without scripts, then compile only the explicitly chosen addon
+  # after bunConfigHook has patched the installed dependency shebangs.
+  native-manual-install = native-addon.overrideAttrs (_: {
+    bunInstallFlags = [ "--ignore-scripts" ];
+    postBunInstall = ''
+      test ! -e node_modules/native-answer/build/Release/answer.node
+      (
+        cd node_modules/native-answer
+        node-gyp rebuild
+      )
+    '';
+  });
+
   native-untrusted = native-addon.overrideAttrs (old: {
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
     bunDepsNativeBuildInputs = [ pkgs.jq ];

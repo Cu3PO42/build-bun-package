@@ -17,10 +17,8 @@ Add this repository as an input named `nix-bun`. The helpers are available
 without applying an overlay:
 
 ```nix
-let
-  bunPkgs = nix-bun.legacyPackages.${system};
-in {
-  packages.${system}.my-app = bunPkgs.buildBunPackage {
+{
+  packages.${system}.my-app = nix-bun.buildBunPackage.${system} {
     pname = "my-app";
     version = "1.0.0";
     src = ./.;
@@ -43,7 +41,8 @@ Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
 an application's dependencies, use `nix build .#my-app.bunDeps`.
 
 The optional overlay exposes the same helpers and replaces `pkgs.bun` only
-when the provided Bun is newer. An equal or newer Nixpkgs Bun is retained. Supported systems are `aarch64-darwin`,
+when the provided Bun is newer. An equal or newer Nixpkgs Bun is retained.
+Supported systems are `aarch64-darwin`,
 `aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun and the real-world
 integration packages; there is no default package. The synthetic example is
 available as `checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with
@@ -297,7 +296,8 @@ headers. For independent hooks, use
 as individually hashed npm archives; no Bun lockfile, Node.js, or npm is needed
 to build it. Its small, flat dependency closure is pinned in
 [`node-gyp/packages.json`](./node-gyp/packages.json); updates must keep all
-transitive dependencies and their compatible versions in sync. Darwin receives cctools and the same deterministic Xcode-version
+transitive dependencies and their compatible versions in sync.
+Darwin receives cctools and the same deterministic Xcode-version
 fallback used by Nixpkgs' bundled gyp. The builder's stdenv supplies the compiler;
 add package-specific libraries through the usual inputs. The hook sets
 `npm_config_node_gyp`, `npm_config_nodedir`, `npm_config_target` and
@@ -343,15 +343,38 @@ but does not supply the complete pinned compiler/Python/header environment.
 For a Bun shell with just the `node` fallback and no native toolchain, use
 `pkgs.bunHooks.bunNodeFallbackHook` instead.
 
-Bun 1.4.4 has no `rebuild` command. An install with `--ignore-scripts` followed
-by a normal install **does not replay dependency scripts**. `bun pm trust`
-operates on untrusted dependencies and changes the trust configuration; using
-`npm rebuild` indiscriminately would run scripts Bun blocks. We therefore run
-Bun's permitted scripts in the initial install and patch shebangs afterward.
-This differs from npm: a lifecycle script that executes a dependency with a
-hardcoded `/bin/bash` or `/usr/bin/env` shebang can fail before patching. Such
-packages need an explicit fix, for example `makeCacheWritable = true` and a
-`preBunInstall` hook that patches the cache:
+## Install scripts
+
+By default Bun selects and runs lifecycle scripts during the initial offline
+install. Shebang patching happens afterward. This follows Bun's trust and
+scheduling rules, but scripts invoking executables with hardcoded interpreter
+paths can fail before patching.
+
+For packages where the required setup is known, disable automatic scripts and
+perform only that setup in `postBunInstall`, after shebangs have been patched:
+
+```nix
+nodeGyp = true;
+bunInstallFlags = [ "--ignore-scripts" ];
+postBunInstall = ''
+  (
+    cd node_modules/my-native-addon
+    node-gyp rebuild
+  )
+'';
+```
+
+`--ignore-scripts` disables the project's scripts too. Run any required root or
+workspace setup explicitly, in dependency order. `bun run install` in a chosen
+package is another option if its declared install script is appropriate; it
+does not reproduce the full install lifecycle. The `native-manual-install`
+check compiles and loads an addon through this explicit setup path.
+Packages that only download prebuilt binaries can often use Nix-provided
+binaries and the upstream package's skip-download setting instead. Keep
+package-specific inputs and environment settings in the ordinary build.
+
+When retaining Bun's automatic lifecycle execution, a `preBunInstall` hook can
+patch just the affected files in a writable cache before installation:
 
 ```nix
 makeCacheWritable = true;
@@ -360,8 +383,35 @@ preBunInstall = ''
 '';
 ```
 
-Use a package-specific cache patch when a dependency patch needs the original
-file contents. The `lifecycle-shebangs` check exercises this preparation path.
+Prefer a targeted patch when a Bun dependency patch needs the original bytes.
+The `lifecycle-shebangs` check exercises cache preparation. Changing the upstream
+script to invoke an available interpreter explicitly is another source-patching
+option.
+
+Automatic discovery is feasible for a diagnostic list, but a general script
+runner would need to reproduce package-manager behavior. Bun's
+[lifecycle documentation](https://bun.com/docs/pm/lifecycle) describes trust
+selection and script environment variables. Its
+[implementation](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/PackageManager/PackageManagerLifecycle.rs)
+also handles implicit node-gyp builds and scheduling. A compatible replay must
+account for the installed dependency graph, platform/optional filtering,
+multiple versions and workspace links, source-specific prepare scripts, working
+directories, PATH, and lifecycle environment. Reading `package.json` scripts
+alone cannot provide that execution plan. Maintaining all of this here would
+be a second lifecycle implementation, so we keep explicit package setup as
+the alternative to Bun's own runner.
+
+Bun 1.4.4 has no package-manager `rebuild` command. An install with
+`--ignore-scripts` followed by a normal install does not replay skipped
+dependency scripts. The [`bun pm` commands](https://bun.com/docs/pm/cli/pm)
+include `ls --trusted` and `untrusted` for inspection; `trust --dry-run` concerns
+untrusted packages, rather than the full install plan. `bun pm trust` changes
+trust configuration, and blanket `npm rebuild` can run scripts Bun blocks.
+A Bun command to replay already-trusted scripts, or an upstream hook between
+linking packages and running scripts, would let us adopt npm's
+install/patch/rebuild ordering without maintaining a separate runner.
+
+## Workspaces
 
 For monorepos, keep `bunRoot` at the workspace root containing the lockfile.
 Set `bunWorkspace = "apps/my-app";` to build and expose one workspace's bins
@@ -394,8 +444,9 @@ compilation is not supported.
 ## Scope and checks
 
 The checks exercise direct and writable caches, lifecycle mutations, trusted
-scripts using Bun as `node`, native Node-API addons built with Bun (implicit and
-explicit node-gyp builds), standalone node-gyp cache validation, runtime closure
+scripts using Bun as `node`, native Node-API addons built with Bun or Node.js
+(implicit, explicit and manually selected node-gyp builds), standalone node-gyp
+with pinned archives, runtime closure
 checks without Node.js/npm, persistent shebangs, explicit Node.js precedence,
 patched dependencies, independent and replacement hooks, custom phases,
 nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with
