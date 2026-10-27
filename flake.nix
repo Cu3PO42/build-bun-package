@@ -57,6 +57,7 @@
         swagger-typescript-api =
           self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
             { };
+        kulala-core = self.legacyPackages.${system}.callPackage ./tests/kulala-core.nix { };
       });
     }
     // nixpkgs.lib.genAttrs [
