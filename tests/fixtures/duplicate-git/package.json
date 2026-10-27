@@ -1,0 +1,8 @@
+{
+  "name": "duplicate-git",
+  "version": "1.0.0",
+  "dependencies": {
+    "first": "git+https://github.com/jonschlinkert/is-number.git#98e8ff1da1a89f93d1397a24d7413ed15421c139",
+    "second": "git+https://github.com/jonschlinkert/is-number.git#98e8ff1da1a89f93d1397a24d7413ed15421c139"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "foreign-optional",
+  "version": "1.0.0",
+  "optionalDependencies": { "@esbuild/win32-x64": "0.25.0" }
+}

@@ -1,0 +1,18 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "duplicate-git",
+      "dependencies": {
+        "first": "git+https://github.com/jonschlinkert/is-number.git#98e8ff1da1a89f93d1397a24d7413ed15421c139",
+        "second": "git+https://github.com/jonschlinkert/is-number.git#98e8ff1da1a89f93d1397a24d7413ed15421c139",
+      },
+    },
+  },
+  "packages": {
+    "first": ["is-number@github:jonschlinkert/is-number#98e8ff1", {}, "jonschlinkert-is-number-98e8ff1", "sha512-VRiId6WxXNzVNsf8kootsozLJ3nE+6fNmpwihMjEudNZbnSjqsRZDgvAIgzdsl5qk714XNJqG6QzO4cQ/WhULQ=="],
+
+    "second": ["is-number@github:jonschlinkert/is-number#98e8ff1", {}, "jonschlinkert-is-number-98e8ff1", "sha512-VRiId6WxXNzVNsf8kootsozLJ3nE+6fNmpwihMjEudNZbnSjqsRZDgvAIgzdsl5qk714XNJqG6QzO4cQ/WhULQ=="],
+  }
+}

@@ -20,6 +20,36 @@ let
         '';
       }
     );
+  duplicateGit = pkgs.buildBunPackage {
+    pname = "bun-duplicate-git";
+    version = "1";
+    src = ./fixtures/duplicate-git;
+    bunDepsHash = "sha256-pmMIv9yvR/9ZHUg70KFsled0t/KH5RIrj9ICG/gT2ak=";
+    bunDepsNativeBuildInputs = [ pkgs.git ];
+    bunInstallFlags = [ "--ignore-scripts" ];
+    dontBunBuild = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      cd "$TMPDIR"
+      rm -rf "$NIX_BUILD_TOP/duplicate-git"
+      bun -e "for (const name of ['first', 'second']) { if (!require('$out/lib/node_modules/duplicate-git/node_modules/' + name)('3')) process.exit(1); }"
+    '';
+  };
+  foreignOptional = pkgs.buildBunPackage {
+    pname = "bun-foreign-optional";
+    version = "1";
+    src = ./fixtures/foreign-optional;
+    bunDepsHash = "sha256-jGdGNvnXNZdtYR55CYEZKhdz4Ss67l4je8+iziQ4tCg=";
+    bunInstallFlags = [ "--ignore-scripts" ];
+    dontBunBuild = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      # The all-platform cache must include this Windows-only binary even on
+      # Linux/Darwin; the ordinary install must exclude the foreign package.
+      test -n "$(find "$bunDeps" -name esbuild.exe -print -quit)"
+      test ! -e "$out/lib/node_modules/foreign-optional/node_modules/@esbuild/win32-x64"
+    '';
+  };
   example = pkgs.callPackage ./example.nix { };
   lifecycle-writable = pkgs.buildBunPackage {
     pname = "bun-lifecycle-writable";
@@ -92,6 +122,19 @@ let
 in
 {
   inherit example workspace catalogs;
+  duplicate-git = duplicateGit;
+  foreign-optional = foreignOptional;
+  duplicate-git-cache = fetchForTest {
+    name = "bun-duplicate-git-deps-${pkgs.stdenv.hostPlatform.system}";
+    src = ./fixtures/duplicate-git;
+    nativeBuildInputs = [ pkgs.git ];
+    hash = duplicateGit.bunDeps.outputHash;
+  };
+  foreign-optional-cache = fetchForTest {
+    name = "bun-foreign-optional-deps-${pkgs.stdenv.hostPlatform.system}";
+    src = ./fixtures/foreign-optional;
+    hash = foreignOptional.bunDeps.outputHash;
+  };
 
   registry-auth = import ./registry-auth.nix { inherit pkgs; };
 
