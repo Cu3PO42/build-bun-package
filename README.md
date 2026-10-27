@@ -62,10 +62,13 @@ an application's dependencies, use `nix build .#my-app.bunDeps`.
 The optional overlay exposes the same helpers and replaces `pkgs.bun` only
 when the provided Bun is newer. An equal or newer Nixpkgs Bun is retained.
 Supported systems are `aarch64-darwin`,
-`aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun and the real-world
-integration packages; there is no default package. The synthetic example is
-available as `checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with
-the exact revision recorded only in `flake.lock`.
+`aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun, with no default
+package. Real-world build examples live under
+`hydraJobs.${system}.integration` and can be built explicitly, for example:
+`nix build .#hydraJobs.aarch64-darwin.integration.filen-cli`. They are not part
+of `checks`; the synthetic example remains available as
+`checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with the exact
+revision recorded only in `flake.lock`.
 
 ## Build and installation
 
@@ -144,8 +147,9 @@ pkgs.buildBunPackage {
 
 ## Real-world integration: opencode
 
-`nix build .#opencode` builds opencode 2.1.1 with `buildBunPackage`.
-The [derivation](./tests/opencode.nix) follows the package in the pinned nixpkgs:
+`nix build .#hydraJobs.aarch64-darwin.integration.opencode` builds opencode
+2.1.1 with `buildBunPackage` (substitute your system for `aarch64-darwin`).
+The [derivation](./integration/opencode.nix) follows the package in the pinned nixpkgs:
 source, patches, build commands, executable wrapping, JSON schemas, shell
 completions, and the installed version check are retained. The Photon dependency
 patch needs a whitespace-only correction to its context lines for Bun 1.4.4.
@@ -159,11 +163,11 @@ install selects the build host's native dependencies. Unlike nixpkgs' filtered
 `node_modules` fetcher, `bun pm fetch` downloads the whole lockfile; this cache
 is about 8.2 GB unpacked.
 
-This is an opt-in integration test and is **excluded from the default flake
+This is an opt-in integration build and is **excluded from the default flake
 checks** because it is substantially larger than the synthetic fixtures.
-`nix build .#opencode` includes the web UI, schemas, shell completions, and
+Building the derivation includes the web UI, schemas, shell completions, and
 installed version check. To fetch only its cache, run
-`nix build .#opencode.bunDeps`.
+`nix build .#hydraJobs.aarch64-darwin.integration.opencode.bunDeps`.
 
 ## Updating packages
 
@@ -225,10 +229,11 @@ The mock-registry test supplies public test credentials internally; it does not
 configure daemon credentials. Keep the same registry configuration for offline
 installation because Bun's cache keys depend on the registry.
 
-## Regular integration: swagger-typescript-api
+## Optional integration: swagger-typescript-api
 
-`nix build .#swagger-typescript-api` builds version 13.13.0 from the same source
-as the pinned nixpkgs package. It is also included in the default flake checks.
+`nix build .#hydraJobs.aarch64-darwin.integration.swagger-typescript-api`
+builds version 13.13.0 from the same source as the pinned nixpkgs package.
+This build is not included in the default flake checks.
 The derivation uses the default build and install hooks: `bun run build`,
 production pruning, package-file selection (including templates), and a Bun
 wrapper for `swagger-typescript-api`. Node.js is not an input.
@@ -465,9 +470,11 @@ pkgs/
   node-gyp/         Standalone tool, Darwin patch, Node headers, and source lockfile
 ```
 
-`tests/` contains fixtures and integration checks. The files under
-`pkgs/node-gyp/source/` are the tool's package manifest and Bun lockfile;
-they are kept separate from its Nix expression and patches.
+`tests/` contains synthetic fixtures and default integration checks.
+`integration/` contains opt-in derivations based on real nixpkgs packages; build
+one with `nix build .#hydraJobs.<system>.integration.<name>`. The files under
+`pkgs/node-gyp/source/` are the tool's package manifest and Bun lockfile; they
+are kept separate from its Nix expression and patches.
 
 ## Scope and checks
 

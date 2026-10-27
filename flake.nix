@@ -51,28 +51,32 @@
           };
         }
       );
-      packages = forAllSystems (
+      hydraJobs = forAllSystems (
         system:
         let
           pkgs = self.legacyPackages.${system};
           basePkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          inherit (pkgs) bun;
-          opencode = pkgs.callPackage ./tests/opencode.nix { };
-          swagger-typescript-api = pkgs.callPackage ./tests/swagger-typescript-api.nix { };
-          kulala-core = pkgs.callPackage ./tests/kulala-core.nix { };
-          gitlab-ci-local = pkgs.callPackage ./tests/gitlab-ci-local.nix { };
-          filen-cli = pkgs.callPackage ./tests/filen-cli.nix { };
-          balatro-mod-manager-web = pkgs.callPackage ./tests/balatro-mod-manager-web.nix { };
-          handy-frontend = pkgs.callPackage ./tests/handy-frontend.nix { };
-          models-dev = pkgs.callPackage ./tests/models-dev.nix { };
-        }
-        // nixpkgs.lib.optionalAttrs basePkgs.stdenv.hostPlatform.isLinux {
-          convertx = pkgs.callPackage ./tests/convertx.nix { };
-          equibop = pkgs.callPackage ./tests/equibop.nix { };
+          integration = {
+            opencode = pkgs.callPackage ./integration/opencode.nix { };
+            swagger-typescript-api = pkgs.callPackage ./integration/swagger-typescript-api.nix { };
+            kulala-core = pkgs.callPackage ./integration/kulala-core.nix { };
+            gitlab-ci-local = pkgs.callPackage ./integration/gitlab-ci-local.nix { };
+            filen-cli = pkgs.callPackage ./integration/filen-cli.nix { };
+            balatro-mod-manager-web = pkgs.callPackage ./integration/balatro-mod-manager-web.nix { };
+            handy-frontend = pkgs.callPackage ./integration/handy-frontend.nix { };
+            models-dev = pkgs.callPackage ./integration/models-dev.nix { };
+          }
+          // nixpkgs.lib.optionalAttrs basePkgs.stdenv.hostPlatform.isLinux {
+            convertx = pkgs.callPackage ./integration/convertx.nix { };
+            equibop = pkgs.callPackage ./integration/equibop.nix { };
+          };
         }
       );
+      packages = forAllSystems (system: {
+        inherit (self.legacyPackages.${system}) bun;
+      });
     }
     // nixpkgs.lib.genAttrs [
       "bun"
