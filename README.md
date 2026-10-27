@@ -116,6 +116,17 @@ checks** because it is substantially larger than the synthetic fixtures.
 installed version check. To fetch only its cache, run
 `nix build .#opencode.bunDeps`.
 
+## Regular integration: swagger-typescript-api
+
+`nix build .#swagger-typescript-api` builds version 13.13.0 from the same source
+as the pinned nixpkgs package. It is also included in the default flake checks.
+The derivation uses the default build and install hooks: `bun run build`,
+production pruning, package-file selection (including templates), and a Bun
+wrapper for `swagger-typescript-api`. Node.js is not an input.
+The installed CLI is checked with `--version`, `--help`, and `generate --help`;
+these smoke checks do not generate a client or access the network. The
+all-platform dependency cache is approximately 1.54 GiB (NAR size).
+
 ## Options
 
 | Attribute | Default | Purpose |

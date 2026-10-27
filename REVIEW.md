@@ -257,3 +257,30 @@ contains 2,554 fetched packages and occupies about 8.2 GB on Darwin, because
 workspaces. A writable cache copy adds temporary storage use. Simultaneous
 Linux builds exhausted the builder's 19 GB temporary filesystem; retrying the
 x86 build by itself passed. Prefer sequential builds on constrained builders.
+
+## Smaller real-world integration: swagger-typescript-api
+
+[tests/swagger-typescript-api.nix](./tests/swagger-typescript-api.nix) builds
+13.13.0 from the pinned nixpkgs source with no custom configure, build, or
+install phase. The default hooks perform the offline install, `bun run build`,
+production pruning, package-file selection, and executable wrapping. This
+replaces the bespoke `node_modules` FOD, manual dependency copying, and Node.js
+wrapper in nixpkgs. `makeWrapperArgs` retains its production `NODE_ENV`.
+Neither Node.js nor npm occurs in the build or runtime dependency closure.
+No changes to the hooks were needed, and a writable cache was unnecessary.
+
+The Darwin package passed with `--option sandbox true`, including the installed
+version check and smoke checks for `--help` and `generate --help`. The help
+output showed the expected commands and OpenAPI input options. Templates were
+present in the installed package and the `tsdown` development dependency was
+pruned. Upstream's build tool rewrites the manifest to expose only the
+`swagger-typescript-api` bin, which matches the executable installed by nixpkgs.
+No API client generation or full upstream test suite was run. Flake evaluation
+passed for all three supported systems; Linux builds were not run for this test.
+
+This package is available as `nix build .#swagger-typescript-api` and included in
+the default flake checks. Its all-platform cache contains 405 fetched packages
+and has a NAR size of approximately 1.54 GiB; fetching took about 75 seconds in
+this run. The cache hash is
+`sha256-eqt/OddO/yJvexnR6wesc1EZtvbOxXKp+xmpZgF79kQ=`. Opencode remains excluded
+from the default checks.

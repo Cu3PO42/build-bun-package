@@ -36,6 +36,9 @@
         inherit (self.legacyPackages.${system}) bun;
         example = self.legacyPackages.${system}.callPackage ./tests/example.nix { };
         opencode = self.legacyPackages.${system}.callPackage ./tests/opencode.nix { };
+        swagger-typescript-api =
+          self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
+            { };
         default = self.packages.${system}.example;
       });
     };
