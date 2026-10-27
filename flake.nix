@@ -65,6 +65,7 @@
         balatro-mod-manager-web =
           self.legacyPackages.${system}.callPackage ./tests/balatro-mod-manager-web.nix
             { };
+        handy-frontend = self.legacyPackages.${system}.callPackage ./tests/handy-frontend.nix { };
       });
     }
     // nixpkgs.lib.genAttrs [
