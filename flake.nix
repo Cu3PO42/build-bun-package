@@ -17,15 +17,20 @@
       overlays.default = final: _prev: import ./package-set.nix { inherit (final) callPackage; };
       legacyPackages = forAllSystems (
         system:
-        let pkgs = import nixpkgs { inherit system; };
-        in nixpkgs.lib.makeScope pkgs.newScope (
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        nixpkgs.lib.makeScope pkgs.newScope (
           scope: import ./package-set.nix { inherit (scope) callPackage; }
         )
       );
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
-      checks = forAllSystems (system: import ./tests {
-        pkgs = nixpkgs.legacyPackages.${system} // self.legacyPackages.${system};
-      });
+      checks = forAllSystems (
+        system:
+        import ./tests {
+          pkgs = nixpkgs.legacyPackages.${system} // self.legacyPackages.${system};
+        }
+      );
       packages = forAllSystems (system: {
         inherit (self.legacyPackages.${system}) bun;
         opencode = self.legacyPackages.${system}.callPackage ./tests/opencode.nix { };

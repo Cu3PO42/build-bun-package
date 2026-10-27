@@ -212,6 +212,7 @@ in
 
   native-explicit-install = native-addon.overrideAttrs (old: {
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.scripts.install = "node-gyp rebuild && touch built-by-script"' native/package.json > native/package.json.new
       mv native/package.json.new native/package.json
@@ -223,6 +224,7 @@ in
 
   native-untrusted = native-addon.overrideAttrs (old: {
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.trustedDependencies = []' package.json > package.json.new
       mv package.json.new package.json
@@ -239,6 +241,7 @@ in
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
     bunInstallFlags = [ ];
     makeCacheWritable = true;
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.scripts.postinstall = "node_modules/is-odd/index.js"' package.json > package.json.new
       mv package.json.new package.json
@@ -275,7 +278,7 @@ in
     src = ./fixtures/sources;
     bunDepsHash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
     bunInstallFlags = [ "--ignore-scripts" ];
-    nativeBuildInputs = [ pkgs.git ];
+    bunDepsNativeBuildInputs = [ pkgs.git ];
     dontBunBuild = true;
     installPhase = ''
       bun -e "if (!require('is-number')('3') || !require('is-odd')(3) || !require('is-even')(4)) process.exit(1)"
@@ -289,7 +292,8 @@ in
     version = "1";
     src = ./fixtures/sources;
     bunDepsHash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
-    nativeBuildInputs = [
+    nativeBuildInputs = [ pkgs.jq ];
+    bunDepsNativeBuildInputs = [
       pkgs.git
       pkgs.jq
     ];
@@ -439,6 +443,7 @@ in
       "BUN_WRAPPER_TEST"
       "value with spaces"
     ];
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.scripts.build = "bun build ./cli.js --target=bun --external=is-odd --outdir=dist && bun ./check-args.js"' package.json > package.json.new
       mv package.json.new package.json
@@ -490,6 +495,7 @@ in
       "enabled"
     ];
     nativeBuildInputs = [ pkgs.jq ];
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.name = "@example/bun-example" | .bin = "dist/cli.js" | .bundledDependencies = ["is-odd"] | .man = ["docs/example.1"] | .files += ["docs"]' package.json > package.json.new
       mv package.json.new package.json
@@ -563,8 +569,13 @@ in
         preUnpack = "echo prepared";
         patchFlags = [ "-p1" ];
         bunFetchFlags = [ "--verbose" ];
-        nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
-        env.PREPARATION_TEST = "forwarded";
+        nativeBuildInputs = old.nativeBuildInputs ++ [
+          pkgs.jq
+          pkgs.cmake
+        ];
+        bunDepsNativeBuildInputs = [ pkgs.jq ];
+        env.BUILD_ONLY = "not forwarded";
+        buildInputs = [ pkgs.zlib ];
       });
       reused = example.overrideAttrs (_: {
         bunDeps = example.bunDeps;
@@ -622,7 +633,9 @@ in
     assert prepared.bunDeps.preUnpack == "echo prepared";
     assert prepared.bunDeps.patchFlags == [ "-p1" ];
     assert prepared.bunDeps.bunFetchFlags == [ "--verbose" ];
-    assert prepared.bunDeps.PREPARATION_TEST == "forwarded";
+    assert !(prepared.bunDeps ? BUILD_ONLY);
+    assert prepared.bunDeps.buildInputs == [ ];
+    assert !(builtins.elem (toString pkgs.cmake) (map toString prepared.bunDeps.nativeBuildInputs));
     assert builtins.elem (toString pkgs.jq.dev) (map toString prepared.bunDeps.nativeBuildInputs);
     assert
       !(builtins.elem (toString pkgs.bunHooks.bunConfigHook) (

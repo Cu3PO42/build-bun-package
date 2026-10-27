@@ -17,6 +17,7 @@ lib.extendMkDerivation {
       name ? "${args.pname}-${args.version}",
       bunDepsHash ? "",
       bunDeps ? null,
+      bunDepsNativeBuildInputs ? [ ],
       bunConfigHook ? null,
       bunBuildHook ? null,
       bunInstallHook ? null,
@@ -60,33 +61,30 @@ lib.extendMkDerivation {
             selectedHooks.bunInstallHook
         )
       ];
-      # Only source preparation belongs in the fixed-output fetcher. Forwarding
-      # the whole derivation would also run package phases and introduce cycles.
-      preparation = lib.filterAttrs (
-        name: _:
-        builtins.elem name [
-          "src"
-          "srcs"
-          "sourceRoot"
-          "setSourceRoot"
-          "unpackPhase"
-          "preUnpack"
-          "postUnpack"
-          "preUnpackHooks"
-          "postUnpackHooks"
-          "patches"
-          "patchFlags"
-          "prePatch"
-          "postPatch"
-          "prePatchHooks"
-          "postPatchHooks"
-          "buildInputs"
-          "env"
-          "bunRoot"
-          "bunFlags"
-          "bunFetchFlags"
-        ]
-      ) finalAttrs;
+      # Share source preparation explicitly. Package tools, setup hooks and
+      # environment belong only to the ordinary build unless opted in below.
+      preparation = {
+        src = finalAttrs.src or null;
+        srcs = finalAttrs.srcs or null;
+        sourceRoot = finalAttrs.sourceRoot or null;
+        setSourceRoot = finalAttrs.setSourceRoot or "";
+        preUnpack = finalAttrs.preUnpack or "";
+        postUnpack = finalAttrs.postUnpack or "";
+        preUnpackHooks = finalAttrs.preUnpackHooks or [ ];
+        postUnpackHooks = finalAttrs.postUnpackHooks or [ ];
+        patches = finalAttrs.patches or [ ];
+        patchFlags = finalAttrs.patchFlags or [ "-p1" ];
+        prePatch = finalAttrs.prePatch or "";
+        postPatch = finalAttrs.postPatch or "";
+        prePatchHooks = finalAttrs.prePatchHooks or [ ];
+        postPatchHooks = finalAttrs.postPatchHooks or [ ];
+        bunRoot = finalAttrs.bunRoot or ".";
+        bunFlags = finalAttrs.bunFlags or [ ];
+        bunFetchFlags = finalAttrs.bunFetchFlags or [ ];
+      }
+      // lib.optionalAttrs (finalAttrs ? unpackPhase) {
+        inherit (finalAttrs) unpackPhase;
+      };
       deps =
         if bunDeps != null then
           bunDeps
@@ -95,15 +93,14 @@ lib.extendMkDerivation {
             preparation
             // {
               name = "${finalAttrs.name or "${finalAttrs.pname}-${finalAttrs.version}"}-bun-deps";
-              nativeBuildInputs = lib.filter (
-                input: !(builtins.elem (toString input) (map toString internalInputs))
-              ) finalAttrs.nativeBuildInputs;
+              nativeBuildInputs = finalAttrs.bunDepsNativeBuildInputs or bunDepsNativeBuildInputs;
               hash = finalAttrs.bunDepsHash or bunDepsHash;
             }
           );
     in
     {
       inherit
+        bunDepsNativeBuildInputs
         nodejs
         bunWorkspace
         bunFlags
