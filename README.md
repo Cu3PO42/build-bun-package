@@ -93,6 +93,29 @@ pkgs.buildBunPackage {
 }
 ```
 
+## Real-world integration: opencode
+
+`nix build .#opencode` builds opencode 2.1.1 with `buildBunPackage`.
+The [derivation](./tests/opencode.nix) follows the package in the pinned nixpkgs:
+source, patches, build commands, executable wrapping, JSON schemas, shell
+completions, and the installed version check are retained. The Photon dependency
+patch needs a whitespace-only correction to its context lines for Bun 1.4.4.
+
+The custom fixed-output `node_modules` derivation is replaced by `bunDepsHash`
+and an offline install. Installation keeps nixpkgs' root, CLI, desktop, and app
+workspace filters and skips lifecycle scripts. The upstream dependency-link
+normalization scripts run in `postBunInstall`; `makeCacheWritable` allows Bun to
+apply dependency patches. The cache fetches all platforms, while the offline
+install selects the build host's native dependencies. Unlike nixpkgs' filtered
+`node_modules` fetcher, `bun pm fetch` downloads the whole lockfile; this cache
+is about 8.2 GB unpacked.
+
+This is an opt-in integration test and is **excluded from the default flake
+checks** because it is substantially larger than the synthetic fixtures.
+`nix build .#opencode` includes the web UI, schemas, shell completions, and
+installed version check. To fetch only its cache, run
+`nix build .#opencode.bunDeps`.
+
 ## Options
 
 | Attribute | Default | Purpose |

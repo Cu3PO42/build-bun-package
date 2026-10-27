@@ -35,6 +35,7 @@
       packages = forAllSystems (system: {
         inherit (self.legacyPackages.${system}) bun;
         example = self.legacyPackages.${system}.callPackage ./tests/example.nix { };
+        opencode = self.legacyPackages.${system}.callPackage ./tests/opencode.nix { };
         default = self.packages.${system}.example;
       });
     };

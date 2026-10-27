@@ -206,7 +206,7 @@ are useful independently of which fetching approach is chosen.
 | [Nondeterministic peer `.bin` links](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-4369911188) | `bun pm fetch` does not create `node_modules`, so those installation artifacts cannot enter the FOD. This avoids the reported source of dependency-cache hash variation. It does not establish that all ordinary Bun installations are reproducible; the reported browserslist dependency graph is not one of our fixtures. |
 | [Fetch every platform](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2836378720) | Already done with `--os '*' --cpu '*' --libc '*'`, including optional packages for other operating systems. No maintained list of preferred platforms or extra platform-selection API is needed. Independent Linux/Darwin fetches validate the same recorded content hashes. |
 | [JSONC parsing](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929315960) and [catalog resolution](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3637361575) | Bun parses its lockfile; jq only reads ordinary package manifests. Added a fixture with explicit JSONC comments, trailing commas, default and named catalogs, and a workspace CLI that runs after source removal. Binary lockfile coverage also remains. |
-| [Workspace installation](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2752943080) and [shared desktop/CLI dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2836138230) | Fetching covers the complete workspace lockfile. Selecting a build member does not restrict that cache or drop other workspace layouts during installation. Consumers can share `bunDeps` and perform separate installs; there is no need to share mutable, platform-specific `node_modules` between derivations. No claim is made about building opencode or its desktop package. |
+| [Workspace installation](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2752943080) and [shared desktop/CLI dependencies](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2836138230) | Fetching covers the complete workspace lockfile. Selecting a build member does not restrict that cache or drop other workspace layouts during installation. Consumers can share `bunDeps` and perform separate installs; there is no need to share mutable, platform-specific `node_modules` between derivations. The opt-in opencode CLI integration below now exercises its shared dependency graph and web UI; the desktop executable remains untested. |
 | [Hash mapping, naming, and flag API mismatches](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-4463917655) | `hash` maps to an actual recursive fixed-output hash, including after `overrideAttrs`. Added an evaluation regression for the override. Fetch and install flags have distinct documented names. `name` is a base name with an added Bun identity suffix; neither fetching nor consumption depends on an archive basename. |
 | [Overridable inputs](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r1929994310) and [derivation extension](https://github.com/NixOS/nixpkgs/pull/376299#issuecomment-3939220032) | `buildBunPackage` already uses `lib.extendMkDerivation`. The smaller standalone fetcher retains `mkDerivation` with `finalAttrs`, as the pinned npm fetcher does, and now honors public hash/root/flag overrides. No additional constructor layer is needed for the tested API. |
 | [Structured flags](https://github.com/NixOS/nixpkgs/pull/376299#discussion_r2838503828) | Hooks use stdenv `concatTo` and have a structured-array regression with spaces and literal glob characters. The fetcher preserves its Nix flag lists through explicit escaping of `finalAttrs`; its regression now actually uses a config filename containing spaces. This also supports unstructured callers. |
@@ -220,3 +220,40 @@ The remaining resolved spelling, formatting, and unrelated package-conversion
 threads do not require functional changes here. Native lifecycle execution
 intentionally differs from the draft hook's unconditional `--ignore-scripts`:
 the trusted/untrusted and node-gyp checks above verify the behavior we retain.
+
+## Opt-in opencode integration
+
+[tests/opencode.nix](./tests/opencode.nix) packages opencode 2.1.1 using
+`buildBunPackage`, following the pinned nixpkgs derivation. It retains the
+source hash, version/schema patches, workspace filters, disabled lifecycle
+scripts, dependency-link normalization, build commands, wrappers, schemas,
+shell completions, and installed version check. `wrapProgramBinary` explicitly
+selects nixpkgs' binary wrapper alongside the builder's shell-wrapper helper.
+The custom `node_modules` FOD and copy-based configure phase are replaced by
+`bunDepsHash`, an offline install, and `postBunInstall` normalization.
+
+No changes to the builder or fetcher were needed. Bun 1.4.4 rejected the final
+hunk of upstream's Photon dependency patch: its context lines have an extra
+space. The cached JavaScript matched the original npm tarball byte for byte,
+and the original patch also failed `git apply --check`. Correcting only those
+context lines made the patch apply and the sandboxed offline install succeed.
+
+Validation completed on `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`.
+All three independently fetched caches produced
+`sha256-UwD/nWCZFMLP1QFTzJcpyFNjVu6WQYceEnvB9ys9W6g=`. All package builds passed,
+including the embedded web UI, JSON schemas, shell completions, and installed
+version checks. Darwin ran with `--option sandbox true`; Linux used the
+configured sandboxed remote builder. The Darwin schemas were additionally
+parsed as JSON and all three completion files checked for nonempty contents.
+The Darwin executable was launched interactively with an isolated temporary
+home and project, an empty credential environment, and `--standalone`: the
+start screen rendered, Ctrl+P opened the command palette, and Ctrl+C exited
+with status 0. No model request was submitted.
+
+This is a large, explicit integration target: `nix build .#opencode`. It is
+excluded from the default flake checks on every system. The all-platform cache
+contains 2,554 fetched packages and occupies about 8.2 GB on Darwin, because
+`bun pm fetch` fetches the full lockfile even though installation filters the
+workspaces. A writable cache copy adds temporary storage use. Simultaneous
+Linux builds exhausted the builder's 19 GB temporary filesystem; retrying the
+x86 build by itself passed. Prefer sequential builds on constrained builders.
