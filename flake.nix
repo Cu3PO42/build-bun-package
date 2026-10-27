@@ -70,6 +70,7 @@
         }
         // nixpkgs.lib.optionalAttrs basePkgs.stdenv.hostPlatform.isLinux {
           convertx = pkgs.callPackage ./tests/convertx.nix { };
+          equibop = pkgs.callPackage ./tests/equibop.nix { };
         }
       );
     }
