@@ -1,15 +1,27 @@
-# nix-bun
+# `buildBunPackage` - `buildNpmPackage`, but for Bun
 
-`buildBunPackage` builds Bun projects using a fixed-output dependency fetch followed
-by an offline install. Includes Bun 1.4.4 and a nixpkgs overlay.
-See [the implementation review](./REVIEW.md) for the Nixpkgs comparison,
-workspace/native-module validation, and remaining limitations.
+`buildBunPackage` allows easily packaging Bun applications and scripts for Nix while sticking as close to the familiar `buildNpmPackage` as reasonably possible.
+This implementation is enabled by new commands in [Bun 1.4.4](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
 
-```sh
-nix build path:.#checks.aarch64-darwin.example  # or your supported system
-./result/bin/bun-example 3   # odd
-nix flake check path:.
-```
+This is an early implementation and comes with no guarantees nor any promise of long term maintenance.
+
+## Limitations
+
+Since the commands this relies on are only available starting with the newest version, we do not know if the format will stay stable with newer versions.
+It is possible that the hash for the dependency FOD will change with Bun updates.
+
+## Differences from `buildNpmPackage`
+
+- By default no install scripts are run; if they are necessary set `bunRunScripts = true`
+
+## AI Disclosure
+
+This code was written primarily by LLMs (mostly GPT-6.1 Sol) under my direction.
+However, all of the code except for tests was reviewed by me (a human).
+
+Beware that any content beyond this line is also written by AI.
+
+-----------------------------
 
 ## Use in a flake
 

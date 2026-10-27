@@ -62,6 +62,9 @@
           self.legacyPackages.${system}.callPackage ./tests/gitlab-ci-local.nix
             { };
         filen-cli = self.legacyPackages.${system}.callPackage ./tests/filen-cli.nix { };
+        balatro-mod-manager-web =
+          self.legacyPackages.${system}.callPackage ./tests/balatro-mod-manager-web.nix
+            { };
       });
     }
     // nixpkgs.lib.genAttrs [
