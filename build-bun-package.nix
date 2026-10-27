@@ -18,6 +18,7 @@ lib.extendMkDerivation {
       bunDepsHash ? "",
       bunDeps ? null,
       bunDepsNativeBuildInputs ? [ ],
+      bunDepsImpureEnvVars ? [ ],
       bunConfigHook ? null,
       bunBuildHook ? null,
       bunInstallHook ? null,
@@ -94,6 +95,7 @@ lib.extendMkDerivation {
             // {
               name = "${finalAttrs.name or "${finalAttrs.pname}-${finalAttrs.version}"}-bun-deps";
               nativeBuildInputs = finalAttrs.bunDepsNativeBuildInputs or bunDepsNativeBuildInputs;
+              impureEnvVars = finalAttrs.bunDepsImpureEnvVars or bunDepsImpureEnvVars;
               hash = finalAttrs.bunDepsHash or bunDepsHash;
             }
           );
@@ -101,6 +103,7 @@ lib.extendMkDerivation {
     {
       inherit
         bunDepsNativeBuildInputs
+        bunDepsImpureEnvVars
         nodejs
         bunWorkspace
         bunFlags

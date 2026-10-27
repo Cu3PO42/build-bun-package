@@ -1,0 +1,7 @@
+{
+  "name": "registry-auth",
+  "version": "1.0.0",
+  "dependencies": {
+    "@private/example": "1.0.0"
+  }
+}

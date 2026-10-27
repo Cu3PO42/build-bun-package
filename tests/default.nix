@@ -93,6 +93,8 @@ in
 {
   inherit example workspace catalogs;
 
+  registry-auth = import ./registry-auth.nix { inherit pkgs; };
+
   swagger-typescript-api = pkgs.callPackage ./swagger-typescript-api.nix { };
 
   node-headers-version = pkgs.bun.tests.node-headers;
@@ -574,6 +576,7 @@ in
           pkgs.cmake
         ];
         bunDepsNativeBuildInputs = [ pkgs.jq ];
+        bunDepsImpureEnvVars = [ "NIX_BUN_TEST_TOKEN" ];
         env.BUILD_ONLY = "not forwarded";
         buildInputs = [ pkgs.zlib ];
       });
@@ -635,6 +638,8 @@ in
     assert prepared.bunDeps.preUnpack == "echo prepared";
     assert prepared.bunDeps.patchFlags == [ "-p1" ];
     assert prepared.bunDeps.bunFetchFlags == [ "--verbose" ];
+    assert builtins.elem "NIX_BUN_TEST_TOKEN" prepared.bunDeps.impureEnvVars;
+    assert !(prepared ? impureEnvVars);
     assert !(prepared.bunDeps ? BUILD_ONLY);
     assert prepared.bunDeps.buildInputs == [ ];
     assert !(builtins.elem (toString pkgs.cmake) (map toString prepared.bunDeps.nativeBuildInputs));

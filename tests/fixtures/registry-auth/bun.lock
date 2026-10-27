@@ -1,0 +1,20 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "registry-auth",
+      "dependencies": {
+        "@private/example": "1.0.0"
+      }
+    }
+  },
+  "packages": {
+    "@private/example": [
+      "@private/example@1.0.0",
+      "",
+      {},
+      "sha512-v4OSg0v5/mM0Limc0sfBdKTpAouHrdqIjNHIzv+V4gRt45W5oTUE/FPSPdHvZclu8wGRjRn4XcTI+E8Cwmhw4Q=="
+    ]
+  }
+}
