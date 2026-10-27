@@ -6,40 +6,45 @@ See [the implementation review](./REVIEW.md) for the Nixpkgs comparison,
 workspace/native-module validation, and remaining limitations.
 
 ```sh
-nix build path:.#example
+nix build path:.#checks.aarch64-darwin.example  # or your supported system
 ./result/bin/bun-example 3   # odd
 nix flake check path:.
 ```
 
 ## Use in a flake
 
-Add this repository as an input named `nix-bun`, then apply its overlay:
+Add this repository as an input named `nix-bun`. The helpers are available
+without applying an overlay:
 
 ```nix
 let
-  pkgs = import nixpkgs {
-    inherit system;
-    overlays = [ nix-bun.overlays.default ];
-  };
+  bunPkgs = nix-bun.legacyPackages.${system};
 in {
-  packages.${system}.my-app = pkgs.buildBunPackage {
+  packages.${system}.my-app = bunPkgs.buildBunPackage {
     pname = "my-app";
     version = "1.0.0";
     src = ./.;
-    bunDepsHash = pkgs.lib.fakeHash;
+    bunDepsHash = nixpkgs.lib.fakeHash;
   };
 }
 ```
+
+To use your own Nixpkgs package set, apply `nix-bun.overlays.default` or create
+a scope with `nixpkgs.lib.makeScope pkgs.newScope (scope: import
+./package-set.nix { inherit (scope) callPackage; })` in a checkout of this
+repository. The standalone scope supports `overrideScope` for customization.
 
 Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
 `lib.fakeHash`, copy the `got: sha256-…` value from Nix's hash mismatch into
 `bunDepsHash`, then build again. Repeat when dependencies change. To fetch just
 an application's dependencies, use `nix build .#my-app.bunDeps`.
 
-The helpers are also available through
-`nix-bun.legacyPackages.${system}.{buildBunPackage,fetchBunDeps}`. The overlay
-replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
-`aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`.
+The optional overlay exposes the same helpers and replaces `pkgs.bun` with
+the provided 1.4.4 derivation. Supported systems are `aarch64-darwin`,
+`aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun and the real-world
+integration packages; there is no default package. The synthetic example is
+available as `checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with
+the exact revision recorded only in `flake.lock`.
 
 ## Build and installation
 
@@ -58,12 +63,11 @@ replaces `pkgs.bun` with the provided 1.4.4 derivation. Supported systems are
    project-relative paths.
    Bins receive Bun wrappers and declared manual pages are installed.
 
-The cache format changed: **existing `bunDepsHash` values must be regenerated**
-with `lib.fakeHash`, even when the lockfile has not changed. A reused `bunDeps`
-cache must contain matching version metadata and the same lockfile. Cache
-output names include the selected Bun version and derivation identity, forcing
-fetching again after Bun changes even if an old fixed-output cache was already
-substituted. This changes output paths without changing the cache content hash.
+A reused `bunDeps` cache must contain matching format metadata and the same
+lockfile. Cache output paths depend on the cache name and content hash, so a Bun upgrade
+can reuse an existing cache. Regenerate the hash only when the cache contents
+change. Fresh-fetch checks deliberately invalidate test outputs when fetcher
+inputs change, independently of this reuse policy.
 
 By default Bun reads the store cache directly. Set `makeCacheWritable = true`
 when dependency patches or lifecycle scripts modify existing package files or
@@ -72,7 +76,20 @@ cache writes even when installed files use `copyfile`. This option copies the
 cache to `$TMPDIR` first.
 
 The archive applies Bun’s publish-file selection (`files`, ignore rules and
-package metadata). Dependencies are copied separately after pruning.
+package metadata) to the current package. It does not pack the dependency graph,
+but it can include packages declared in `bundledDependencies`. Extraction excludes
+all `node_modules` paths because the complete pruned dependency tree is copied
+separately, including unbundled dependencies and changes made by lifecycle scripts.
+Bun has no equivalent of npm's machine-readable `pack --json` file list, so the
+installer extracts an archive instead.
+
+`bunInstallPackageTree` walks linked local packages and preserves their paths
+relative to `bunRoot`. It packs each local package once, copies its own
+`node_modules`, and rewrites dependency links into the installed tree. Workspaces
+and `file:` packages can link outside the selected member; isolated linking also
+uses a shared `.bun` store. Flattening or copying just the member would leave
+broken links after the source directory is removed. This traversal handles those
+layouts; custom artifact-only installers can skip it.
 
 The default installer prunes dev dependencies after building and testing. Set
 `dontBunPrune = true` to retain them. For a bundled executable or static website,
@@ -116,6 +133,69 @@ checks** because it is substantially larger than the synthetic fixtures.
 installed version check. To fetch only its cache, run
 `nix build .#opencode.bunDeps`.
 
+## Updating packages
+
+[`nix-update`](https://github.com/Mic92/nix-update#usage) can update source and
+dependency hashes using its existing custom dependency interface:
+
+```sh
+nix-update my-app --custom-dep bunDeps
+# For a package exposed through a flake:
+nix-update --flake my-app --custom-dep bunDeps
+# Recalculate hashes without changing the version:
+nix-update my-app --version=skip --custom-dep bunDeps
+```
+
+Keep the literal `bunDepsHash` in the package's Nix expression. The updater
+builds `bunDeps` with a blank output hash and replaces the old hash with the
+reported hash. This path was verified with nix-update 1.16.0 against a temporary
+package with an intentionally wrong hash. No separate Bun prefetch tool is
+needed. In Nixpkgs, a package can opt its update script into this behavior:
+
+```nix
+passthru.updateScript = nix-update-script {
+  extraArgs = [ "--custom-dep" "bunDeps" ];
+};
+```
+
+Automatic detection without that flag would require adding `bunDeps.outputHash`
+to nix-update's evaluation and dependency-hash updater registry. The lower-level
+`update-source-version` can recalculate this FOD with `--source-key=bunDeps`
+and `--ignore-same-version` after updating the source. Neither tool regenerates a Bun lockfile; upstream
+must commit it, or the package must supply an updated lockfile explicitly.
+
+## Private registries
+
+Bun reads registry configuration from the source's `bunfig.toml` or `.npmrc`.
+Keep credentials as environment references, for example:
+
+```toml
+[install.scopes]
+myorg = { url = "https://registry.example.com/", token = "$NPM_TOKEN" }
+```
+
+Then opt only the required variable names into dependency fetching:
+
+```nix
+bunDepsImpureEnvVars = [ "NPM_TOKEN" ];
+```
+
+For direct `fetchBunDeps` calls use `impureEnvVars = [ "NPM_TOKEN" ];`.
+The existing proxy variables are retained. The ordinary offline package build
+does not receive these credentials. Never embed token values in Nix `env`,
+flags, source URLs, or committed configuration: those enter the Nix store.
+Private dependency contents themselves also enter the store/cache.
+
+Nix must have the values in the **builder process's environment**. With a
+multi-user installation that means the daemon environment, including on remote
+builders; exporting a token in the client shell or using `--impure` is not
+enough. Nix also offers `impure-env` for trusted users when
+`configurable-impure-env` is enabled on the daemon. See the
+[Nix documentation](https://nix.dev/manual/nix/2.31/language/advanced-attributes#adv-attr-impureEnvVars).
+The mock-registry test supplies public test credentials internally; it does not
+configure daemon credentials. Keep the same registry configuration for offline
+installation because Bun's cache keys depend on the registry.
+
 ## Regular integration: swagger-typescript-api
 
 `nix build .#swagger-typescript-api` builds version 13.13.0 from the same source
@@ -131,10 +211,12 @@ all-platform dependency cache is approximately 1.54 GiB (NAR size).
 
 | Attribute | Default | Purpose |
 | --- | --- | --- |
-| `bun` | overlay Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
+| `bun` | provided Bun | Bun package used for fetching, hooks, and executable wrappers (>= 1.4.4) |
 | `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility; otherwise `node` runs Bun |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
+| `bunDepsNativeBuildInputs` | `[]` | Tools/setup hooks explicitly needed for fetching or source preparation, e.g. Git or jq |
+| `bunDepsImpureEnvVars` | `[]` | Names of builder environment variables to expose only to dependency fetching, e.g. registry tokens |
 | `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
 | `bunWorkspace` | `null` | Workspace directory relative to `bunRoot`; selects its build script, bins and manuals |
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
@@ -163,9 +245,12 @@ working directory afterward. Custom phases that previously relied on the
 configure phase leaving the shell in `bunRoot` must enter it themselves and
 restore the working directory before the next phase.
 
-Source selection, unpack and patch settings, caller preparation inputs, and
-`env` are forwarded to the dependency fetcher. This explicit selection avoids
-passing package build and install phases into the fixed-output fetch. The hook
+Source selection, unpack and patch settings are passed explicitly to the
+dependency fetcher. Package `nativeBuildInputs`, `buildInputs`, and `env` are
+not forwarded. If a shared `postPatch` runs jq, add jq to both
+`nativeBuildInputs` and `bunDepsNativeBuildInputs`; Git dependencies normally
+need Git only in `bunDepsNativeBuildInputs`. For custom fetcher environment or
+phases, supply `bunDeps = fetchBunDeps { ... };` explicitly. The hook
 flags are derivation attributes. Hooks use stdenv's `concatTo` convention for
 strings, structured arrays, and shell `*FlagsArray` variables. Set
 `__structuredAttrs = true` when hook flag arguments contain spaces; ordinary
@@ -261,7 +346,14 @@ file contents. The `lifecycle-shebangs` check exercises this preparation path.
 For monorepos, keep `bunRoot` at the workspace root containing the lockfile.
 Set `bunWorkspace = "apps/my-app";` to build and expose one workspace's bins
 and manuals. Set `makeCacheWritable = true` when Bun needs to update the cache
-for local packages or workspace bins. Dependencies are installed and pruned for the whole workspace.
+for local packages or workspace bins. Dependencies are installed and pruned
+for the whole workspace by default.
+`bun pm fetch` always downloads the complete workspace lockfile; `bunWorkspace`
+does not narrow that cache. `buildNpmPackage` likewise fetches the complete npm
+lockfile, while its workspace option affects later build/pack/prune commands.
+Bun install/prune filtering can be requested explicitly with `bunInstallFlags`
+and `bunPruneFlags`; it does not reduce fetching. Keeping a single full cache
+allows several workspace packages to share `bunDeps`.
 The installer preserves the project directory layout beneath
 `$out/lib/node_modules/<root-package-name>`, packing linked workspace packages
 separately and copying both root and workspace-local `node_modules`. A root
@@ -278,6 +370,7 @@ project root; the build hook additionally enters the selected workspace. Neither
 changes the working directory of later phases. Unlike npm's workspace option,
 `bunWorkspace` is a directory, not a package name or filter pattern. Cross
 compilation is not supported.
+
 ## Scope and checks
 
 The checks exercise direct and writable caches, lifecycle mutations, trusted
@@ -287,9 +380,10 @@ checks without Node.js/npm, persistent shebangs, explicit Node.js precedence,
 patched dependencies, independent and replacement hooks, custom phases,
 nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with
 both hoisted and isolated linkers, scoped wrappers and manuals, structured flag
-arrays, pruning, and cache validation. They also cover a binary lockfile and a fixture combining a pinned
-Git dependency, an HTTP tarball, and a non-default registry. Distinct cache
-output names and derivation salts force independent platform fetches when
+arrays, pruning, and cache validation. They also cover a binary lockfile,
+duplicate identical Git URLs under two aliases, an explicitly Windows-only optional dependency, an authenticated local
+registry, and a fixture combining a pinned Git dependency, an HTTP tarball, and
+a non-default registry. Distinct cache output names and derivation salts force independent platform fetches when
 fetcher inputs change. Run `nix flake check` on each supported system to verify
 the caches and builds, or use the remote-builder command in [REVIEW.md](./REVIEW.md).
 
@@ -300,9 +394,10 @@ performing their own downloads. Native dependencies that download extra assets
 in scripts need those assets supplied separately.
 
 The Git, tarball, and registry fixture covers one public GitHub repository, one
-npm tarball, and the public Yarn registry. Private registry authentication and
-other Git protocols are not covered; authentication is not exposed as a
-dedicated option.
+npm tarball, and the public Yarn registry. The authentication fixture exercises
+a bearer-token registry, rejects missing/incorrect credentials, checks the cache
+for token leakage, and installs offline after the server stops and the token is
+unset. Other Git protocols and private Git authentication remain untested.
 
 A hash-free `importBunLock` is left for a follow-up. The intended approach is to
 parse the text lockfile, fetch individual tarballs with their recorded integrity

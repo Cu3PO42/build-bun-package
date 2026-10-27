@@ -28,6 +28,8 @@ bunInstallManuals() {
 # Keep the project-relative layout: workspace links and isolated-linker links
 # can point outside a package's own node_modules. Pack each linked local package
 # and copy its node_modules, rather than copying links to the build directory.
+# The visited set handles cycles/shared links. Registry/.bun store entries are
+# already copied; only links to local source packages extend the traversal.
 bunInstallPackageTree() {
     local projectRoot=$1 projectOut=$2 current currentOut link sourceLink target relative targetOut
     local -a pending=("$projectRoot" "${projectRoot}/${bunWorkspace:-.}")
@@ -56,6 +58,8 @@ bunInstallPackageTree() {
             cp package.json "$currentOut/package.json"
         else
             bun pm pack "${packFlags[@]}" --ignore-scripts --filename "$TMPDIR/package.tgz"
+            # Bundled dependencies can appear in the archive. Copy the pruned
+            # installed tree below so bundled and unbundled packages agree.
             tar -xzf "$TMPDIR/package.tgz" -C "$currentOut" --strip-components=1 --exclude='*/node_modules' --exclude='*/node_modules/*'
         fi
         popd >/dev/null
