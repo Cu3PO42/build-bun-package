@@ -613,8 +613,10 @@ in
         bunBuildScript = "build";
       });
     in
-    assert alternate.bunDeps.outPath != example.bunDeps.outPath;
-    assert rebuilt.bunDeps.outPath != example.bunDeps.outPath;
+    assert alternate.bunDeps.outPath == example.bunDeps.outPath;
+    assert alternate.bunDeps.drvPath != example.bunDeps.drvPath;
+    assert rebuilt.bunDeps.outPath == example.bunDeps.outPath;
+    assert rebuilt.bunDeps.drvPath != example.bunDeps.drvPath;
     assert rebuiltBun.version == pkgs.bun.version;
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
