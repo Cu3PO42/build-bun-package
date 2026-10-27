@@ -29,18 +29,21 @@ in {
 }
 ```
 
-To use your own Nixpkgs package set, apply `nix-bun.overlays.default` or create
-a scope with `nixpkgs.lib.makeScope pkgs.newScope (scope: import
-./package-set.nix { inherit (scope) callPackage; })` in a checkout of this
-repository. The standalone scope supports `overrideScope` for customization.
+Top-level `fetchBunDeps`, `bunConfigHook`, `bunBuildHook`, `bunInstallHook`,
+`bunNodeFallbackHook`, `bunNodeGypHook`, `bunNodeShim`, `bunNodeGyp`,
+`bunNodeHeaders`, `bunHooks`, and `bun` are also indexed by `${system}`.
+For example, use `nix-bun.bunNodeGypHook.${system}` in a development shell.
+The complete scope remains available as `nix-bun.legacyPackages.${system}`
+and supports `overrideScope` for customization. To use your own Nixpkgs package
+set, apply `nix-bun.overlays.default`.
 
 Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
 `lib.fakeHash`, copy the `got: sha256-…` value from Nix's hash mismatch into
 `bunDepsHash`, then build again. Repeat when dependencies change. To fetch just
 an application's dependencies, use `nix build .#my-app.bunDeps`.
 
-The optional overlay exposes the same helpers and replaces `pkgs.bun` with
-the provided 1.4.4 derivation. Supported systems are `aarch64-darwin`,
+The optional overlay exposes the same helpers and replaces `pkgs.bun` only
+when the provided Bun is newer. An equal or newer Nixpkgs Bun is retained. Supported systems are `aarch64-darwin`,
 `aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun and the real-world
 integration packages; there is no default package. The synthetic example is
 available as `checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with

@@ -14,7 +14,15 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in
     {
-      overlays.default = final: _prev: import ./package-set.nix { inherit (final) callPackage; };
+      overlays.default =
+        final: prev:
+        let
+          packages = import ./package-set.nix { inherit (final) callPackage; };
+        in
+        builtins.removeAttrs packages [ "bun" ]
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.versionOlder prev.bun.version packages.bun.version) {
+          inherit (packages) bun;
+        };
       legacyPackages = forAllSystems (
         system:
         let
@@ -27,8 +35,14 @@
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
       checks = forAllSystems (
         system:
-        import ./tests {
+        (import ./tests {
           pkgs = nixpkgs.legacyPackages.${system} // self.legacyPackages.${system};
+        })
+        // {
+          flake-api = import ./tests/flake.nix {
+            inherit self;
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
         }
       );
       packages = forAllSystems (system: {
@@ -38,5 +52,21 @@
           self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
             { };
       });
-    };
+    }
+    // nixpkgs.lib.genAttrs [
+      "bun"
+      "buildBunPackage"
+      "fetchBunDeps"
+      "bunHooks"
+      "bunNodeGyp"
+      "bunNodeHeaders"
+      "bunNodeGypHook"
+    ] (name: forAllSystems (system: self.legacyPackages.${system}.${name}))
+    // nixpkgs.lib.genAttrs [
+      "bunConfigHook"
+      "bunBuildHook"
+      "bunInstallHook"
+      "bunNodeFallbackHook"
+      "bunNodeShim"
+    ] (name: forAllSystems (system: self.legacyPackages.${system}.bunHooks.${name}));
 }
