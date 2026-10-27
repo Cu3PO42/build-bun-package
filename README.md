@@ -30,10 +30,11 @@ Beware that any content beyond this line is also at least partially written by A
 
 -----------------------------
 
-## Use in a flake
+## Usage
 
-Add this repository as an input named `nix-bun`. The helpers are available
-without applying an overlay:
+### Package an application
+
+Add this repository as a flake input named `nix-bun`. No overlay is required:
 
 ```nix
 {
@@ -46,92 +47,23 @@ without applying an overlay:
 }
 ```
 
-Top-level `fetchBunDeps`, `bunConfigHook`, `bunBuildHook`, `bunInstallHook`,
-`bunNodeFallbackHook`, `bunNodeGypHook`, `bunNodeShim`, `bunNodeGyp`,
-`bunNodeHeaders`, `bunHooks`, and `bun` are also indexed by `${system}`.
-For example, use `nix-bun.bunNodeGypHook.${system}` in a development shell.
-The complete scope remains available as `nix-bun.legacyPackages.${system}`
-and supports `overrideScope` for customization. To use your own Nixpkgs package
-set, apply `nix-bun.overlays.default`.
-
 Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
 `lib.fakeHash`, copy the `got: sha256-…` value from Nix's hash mismatch into
-`bunDepsHash`, then build again. Repeat when dependencies change. To fetch just
-an application's dependencies, use `nix build .#my-app.bunDeps`.
+`bunDepsHash`, then build again. Repeat when dependencies change. To fetch only
+the dependencies, run `nix build .#my-app.bunDeps`.
 
-The optional overlay exposes the same helpers and replaces `pkgs.bun` only
-when the provided Bun is newer. An equal or newer Nixpkgs Bun is retained.
-Supported systems are `aarch64-darwin`,
-`aarch64-linux`, and `x86_64-linux`. `packages` exposes Bun, with no default
-package. Real-world build examples live under
-`hydraJobs.${system}.integration` and can be built explicitly, for example:
-`nix build .#hydraJobs.aarch64-darwin.integration.filen-cli`. They are not part
-of `checks`; the synthetic example remains available as
-`checks.${system}.example`. Nixpkgs follows `nixos-unstable`, with the exact
-revision recorded only in `flake.lock`.
+By default, the builder installs dependencies offline with lifecycle scripts
+disabled, runs `bun run build`, and installs the package's publishable files
+and production dependencies. Executables declared in `package.json` receive
+Bun wrappers; declared manual pages are installed too. Set `dontBunBuild = true`
+for a package without a build script. Set `dontBunPrune = true` to retain dev
+dependencies in the default installation.
 
-## Build and installation
-
-1. `fetchBunDeps` unpacks and patches the source and runs `bun pm fetch --frozen-lockfile`
-   for all platforms directly into a recursively hashed cache. The cache contains
-   `.nix-bun/format-version` and a byte-for-byte copy of the selected lockfile.
-   No dependency lifecycle scripts run during fetching.
-2. The config hook validates the cache and lockfile, then runs `bun install
-   --offline --frozen-lockfile --backend copyfile --ignore-scripts` by default.
-   With `bunRunScripts = true`, it first copies the cache and patches its
-   shebangs, then lets Bun run scripts according to its trust rules during
-   installation. Installed dependencies are made writable and their shebangs
-   patched afterward as well. `BUN_INSTALL_GLOBAL_STORE=0` keeps
-   dependencies in the package tree.
-3. The build hook runs `bun run build` by default.
-4. The install hook uses `bun pm pack --ignore-scripts` to select package files,
-   excludes packed dependencies, and installs pruned `node_modules` at their
-   project-relative paths.
-   Bins receive Bun wrappers and declared manual pages are installed.
-
-The dependency cache is a directory rather than a compressed archive, avoiding
-an extra compression/extraction pass and allowing store deduplication. Binary
-caches can compress NAR transfers independently. Bun parses the lockfile itself;
-no separate lockfile parser or npm cache mapper is needed. An empty cache is
-valid for projects with only local dependencies.
-
-A reused `bunDeps` cache must contain matching format metadata and the same
-lockfile. Cache output paths depend on the cache name and content hash, so a Bun upgrade
-can reuse an existing cache. Regenerate the hash only when the cache contents
-change. Fresh-fetch checks deliberately invalidate test outputs when fetcher
-inputs change, independently of this reuse policy.
-
-By default Bun reads the store cache directly. Set `makeCacheWritable = true`
-when dependency patches or installation need to write to the cache. A common
-case is `patchedDependencies`: Bun applies those patches and stores the patched
-package in its global cache ([Bun patch docs](https://bun.com/docs/pm/cli/patch)).
-The `lifecycle-disabled` check covers this case with scripts disabled. This
-setting copies the cache to `$TMPDIR` first. `bunRunScripts = true` always uses
-the writable copy and patches its shebangs automatically, so it needs no
-additional `makeCacheWritable` setting.
-
-The archive applies Bun’s publish-file selection (`files`, ignore rules and
-package metadata) to the current package. It does not pack the dependency graph,
-but it can include packages declared in `bundledDependencies`. Extraction excludes
-all `node_modules` paths because the complete pruned dependency tree is copied
-separately, including unbundled dependencies and changes made by lifecycle scripts.
-Bun has no equivalent of npm's machine-readable `pack --json` file list, so the
-installer extracts an archive instead.
-
-`bunInstallPackageTree` walks linked local packages and preserves their paths
-relative to `bunRoot`. It packs each local package once, copies its own
-`node_modules`, and rewrites dependency links into the installed tree. Workspaces
-and `file:` packages can link outside the selected member; isolated linking also
-uses a shared `.bun` store. Flattening or copying just the member would leave
-broken links after the source directory is removed. This traversal handles those
-layouts; custom artifact-only installers can skip it.
-
-The default installer prunes dev dependencies after building and testing. Set
-`dontBunPrune = true` to retain them. For a bundled executable or static website,
-override `installPhase` to install only the build output:
+For a bundled executable or static website, override `installPhase` to install
+only the build output:
 
 ```nix
-pkgs.buildBunPackage {
+nix-bun.buildBunPackage.${system} {
   pname = "my-site";
   version = "1.0.0";
   src = ./.;
@@ -145,103 +77,204 @@ pkgs.buildBunPackage {
 }
 ```
 
-## Real-world integration: opencode
+Supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`.
+Cross compilation is not supported.
 
-`nix build .#hydraJobs.aarch64-darwin.integration.opencode` builds opencode
-2.1.1 with `buildBunPackage` (substitute your system for `aarch64-darwin`).
-The [derivation](./integration/opencode.nix) follows the package in the pinned nixpkgs:
-source, patches, build commands, executable wrapping, JSON schemas, shell
-completions, and the installed version check are retained. The Photon dependency
-patch needs a whitespace-only correction to its context lines for Bun 1.4.4.
+### Use an overlay or individual helpers
 
-The custom fixed-output `node_modules` derivation is replaced by `bunDepsHash`
-and an offline install. Installation keeps nixpkgs' root, CLI, desktop, and app
-workspace filters and skips lifecycle scripts. The upstream dependency-link
-normalization scripts run in `postBunInstall`; `makeCacheWritable` allows Bun to
-apply dependency patches. The cache fetches all platforms, while the offline
-install selects the build host's native dependencies. Unlike nixpkgs' filtered
-`node_modules` fetcher, `bun pm fetch` downloads the whole lockfile; this cache
-is about 8.2 GB unpacked.
+Apply `nix-bun.overlays.default` to use your own Nixpkgs package set and access
+`pkgs.buildBunPackage`. The overlay replaces `pkgs.bun` only when this
+repository's Bun is newer. Nixpkgs follows `nixos-unstable`, with its revision
+recorded in `flake.lock`.
 
-This is an opt-in integration build and is **excluded from the default flake
-checks** because it is substantially larger than the synthetic fixtures.
-Building the derivation includes the web UI, schemas, shell completions, and
-installed version check. To fetch only its cache, run
-`nix build .#hydraJobs.aarch64-darwin.integration.opencode.bunDeps`.
+Without the overlay, top-level `fetchBunDeps`, `bunConfigHook`, `bunBuildHook`,
+`bunInstallHook`, `bunNodeFallbackHook`, `bunNodeGypHook`, `bunNodeShim`,
+`bunNodeGyp`, `bunNodeHeaders`, `bunHooks`, and `bun` are indexed by `${system}`.
+The complete scope is available as `nix-bun.legacyPackages.${system}` and
+supports `overrideScope`. The `packages` output exposes Bun, with no default
+package.
 
-## Updating packages
+To use the hooks with `stdenv.mkDerivation`, add the desired hooks from
+`pkgs.bunHooks` to `nativeBuildInputs` and supply `bunDeps`. Each hook propagates
+the Bun package it was configured with.
 
-[`nix-update`](https://github.com/Mic92/nix-update#usage) can update source and
-dependency hashes using its existing custom dependency interface:
+### Workspaces and nested projects
 
-```sh
-nix-update my-app --custom-dep bunDeps
-# For a package exposed through a flake:
-nix-update --flake my-app --custom-dep bunDeps
-# Recalculate hashes without changing the version:
-nix-update my-app --version=skip --custom-dep bunDeps
+Set `bunRoot` to the directory containing the lockfile, relative to the unpacked
+source root. For a monorepo, set `bunWorkspace = "apps/my-app";` to select a
+workspace's build script, executables, and manuals. This is a directory relative
+to `bunRoot`, not a package name or filter pattern.
+
+Dependencies are fetched for the complete lockfile, and installed and pruned
+for the whole workspace by default. Use `bunInstallFlags` and `bunPruneFlags`
+for Bun's install/prune filters; these do not reduce fetching. Several workspace
+packages can share the same `bunDeps`.
+
+Set `makeCacheWritable = true` if Bun needs to update the cache for local
+packages, workspace bins, or `patchedDependencies`. It is already implied by
+`bunRunScripts = true`.
+
+### Lifecycle scripts and native dependencies
+
+Enable install scripts with `bunRunScripts = true`. Bun's dependency trust rules
+still apply, and an explicit `--ignore-scripts` in `bunInstallFlags` or upstream
+configuration can still disable scripts. This option controls installation;
+the build hook runs independently, and packing always skips scripts.
+
+The default runtime is Bun, including a fallback `node` command when none is
+already on `PATH`. For scripts that need genuine Node.js, set
+`nodejs = pkgs.nodejs-slim;` or add Node.js to `nativeBuildInputs`.
+Installed application wrappers still use Bun.
+
+Prebuilt Node-API addons need no additional hook. To compile dependencies with
+node-gyp, enable the optional toolchain:
+
+```nix
+nodeGyp = true;
+bunRunScripts = true;
+# Optional: run node-gyp with genuine Node.js and its matching headers.
+nodejs = pkgs.nodejs;
 ```
 
-Keep the literal `bunDepsHash` in the package's Nix expression. The updater
-builds `bunDeps` with a blank output hash and replaces the old hash with the
-reported hash. This path was verified with nix-update 1.16.0 against a temporary
-package with an intentionally wrong hash. No separate Bun prefetch tool is
-needed. `buildBunPackage` automatically supplies `passthru.updateScript` using
-`nix-update-script { extraArgs = [ "--custom-dep" "bunDeps" ]; }`.
-A caller-provided `passthru.updateScript` takes precedence; set it to `null`
-to disable the default. Other passthru attributes are preserved.
+Omit `nodejs` to run node-gyp with Bun and headers matching Bun's reported Node
+compatibility version. Merely adding Node.js to `nativeBuildInputs` changes
+`PATH`, but does not select node-gyp's runtime or headers. The toolchain supplies
+Python, node-gyp, and local headers; stdenv supplies the compiler. Add
+package-specific libraries through the usual inputs.
 
-Automatic detection without that flag would require adding `bunDeps.outputHash`
-to nix-update's evaluation and dependency-hash updater registry. The lower-level
-`update-source-version` can recalculate this FOD with `--source-key=bunDeps`
-and `--ignore-same-version` after updating the source. Neither tool regenerates a Bun lockfile; upstream
-must commit it, or the package must supply an updated lockfile explicitly.
+If only a specific setup command is needed, leave automatic scripts disabled
+and run it after dependency shebangs have been patched:
 
-## Private registries
+```nix
+nodeGyp = true;
+postBunInstall = ''
+  (
+    cd node_modules/my-native-addon
+    node-gyp rebuild
+  )
+'';
+```
 
-Bun reads registry configuration from the source's `bunfig.toml` or `.npmrc`.
-Keep credentials as environment references, for example:
+Supply any required root or workspace setup explicitly and in dependency order.
+Packages that download prebuilt binaries can often use Nix-provided binaries
+and upstream skip-download settings instead.
+
+For a development shell with the native toolchain, use:
+
+```nix
+pkgs.mkShell {
+  packages = [ pkgs.bunNodeGypHook ];
+}
+```
+
+Run `bun install` normally, or `node-gyp rebuild` from a package with
+`binding.gyp`. For genuine Node.js, use
+`pkgs.bunNodeGypHook.override { nodejs = pkgs.nodejs; }`. For just Bun and the
+fallback `node` command, use `pkgs.bunHooks.bunNodeFallbackHook` instead.
+
+### Private registries
+
+Keep registry configuration in the source's `bunfig.toml` or `.npmrc`, with
+credentials supplied through environment references:
 
 ```toml
 [install.scopes]
 myorg = { url = "https://registry.example.com/", token = "$NPM_TOKEN" }
 ```
 
-Then opt only the required variable names into dependency fetching:
+Opt only the required variable names into dependency fetching:
 
 ```nix
 bunDepsImpureEnvVars = [ "NPM_TOKEN" ];
 ```
 
-For direct `fetchBunDeps` calls use `impureEnvVars = [ "NPM_TOKEN" ];`.
-The existing proxy variables are retained. The ordinary offline package build
-does not receive these credentials. Never embed token values in Nix `env`,
-flags, source URLs, or committed configuration: those enter the Nix store.
-Private dependency contents themselves also enter the store/cache.
+For direct `fetchBunDeps` calls, use `impureEnvVars = [ "NPM_TOKEN" ];`.
+Proxy variables are retained. The ordinary offline build does not receive
+these credentials. Keep the same registry configuration for offline installation:
+Bun's cache keys depend on the registry.
 
-Nix must have the values in the **builder process's environment**. With a
-multi-user installation that means the daemon environment, including on remote
-builders; exporting a token in the client shell or using `--impure` is not
-enough. Nix also offers `impure-env` for trusted users when
-`configurable-impure-env` is enabled on the daemon. See the
+Nix needs the values in the **builder process's environment**. With a multi-user
+installation, configure the daemon environment, including on remote builders;
+exporting a token in the client shell or using `--impure` is not enough.
+Nix also offers `impure-env` for trusted users when `configurable-impure-env`
+is enabled on the daemon; see the
 [Nix documentation](https://nix.dev/manual/nix/2.31/language/advanced-attributes#adv-attr-impureEnvVars).
-The mock-registry test supplies public test credentials internally; it does not
-configure daemon credentials. Keep the same registry configuration for offline
-installation because Bun's cache keys depend on the registry.
+Never embed token values in Nix `env`, flags, source URLs, or committed
+configuration: these enter the Nix store. Private dependency contents also
+enter the store/cache.
 
-## Optional integration: swagger-typescript-api
+### Update packages
 
-`nix build .#hydraJobs.aarch64-darwin.integration.swagger-typescript-api`
-builds version 13.13.0 from the same source as the pinned nixpkgs package.
-This build is not included in the default flake checks.
-The derivation uses the default build and install hooks: `bun run build`,
-production pruning, package-file selection (including templates), and a Bun
-wrapper for `swagger-typescript-api`. Node.js is not an input.
-The installed CLI is checked with `--version`, `--help`, and `generate --help`;
-these smoke checks do not generate a client or access the network. The
-all-platform dependency cache is approximately 1.54 GiB (NAR size).
+[`nix-update`](https://github.com/Mic92/nix-update#usage) supports the dependency
+cache through its custom dependency interface:
 
-## Options
+```sh
+nix-update my-app --custom-dep bunDeps
+nix-update --flake my-app --custom-dep bunDeps
+# Recalculate hashes without changing the version:
+nix-update my-app --version=skip --custom-dep bunDeps
+```
+
+Keep the literal `bunDepsHash` in the package's Nix expression.
+`buildBunPackage` supplies a default `passthru.updateScript` using
+`nix-update-script` with `--custom-dep bunDeps`. A caller-provided
+`passthru.updateScript` takes precedence; set it to `null` to disable the default.
+Other passthru attributes are preserved.
+
+Automatic dependency detection without `--custom-dep` is not supported.
+The lower-level `update-source-version` can recalculate the cache with
+`--source-key=bunDeps --ignore-same-version` after updating the source. Neither
+tool regenerates a Bun lockfile: upstream must commit it, or the package must
+supply an updated lockfile explicitly.
+
+### Build examples and run checks
+
+Real-world package examples live in [`integration/`](./integration) and are
+exposed under `hydraJobs.${system}.integration`. Build one explicitly, or fetch
+just its cache:
+
+```sh
+nix build .#hydraJobs.aarch64-darwin.integration.filen-cli
+nix build .#hydraJobs.aarch64-darwin.integration.opencode.bunDeps
+```
+
+Substitute your system as needed. These builds are excluded from default flake
+checks because they can be large. The [opencode example](./integration/opencode.nix)
+shows custom workspace filtering, dependency patches, and installation;
+[swagger-typescript-api](./integration/swagger-typescript-api.nix) uses the
+default build and install hooks.
+
+Run `nix flake check` on each supported system. `nix flake check --all-systems`
+evaluates other systems but does not build their checks on the current host.
+To build all checks through configured remote builders:
+
+```sh
+nix build --no-link --keep-going --impure --expr '
+  let flake = builtins.getFlake (toString ./.);
+  in builtins.concatLists (map
+    (system: builtins.attrValues flake.checks.${system})
+    (builtins.attrNames flake.checks))
+'
+```
+
+### Update the bundled tools
+
+To update Bun and matching headers, run from the repository root:
+
+```sh
+$(nix-build --no-out-link -A bun.updateScript)
+```
+
+Pass a Bun version as an argument to select a release. The updater checks headers
+even when Bun is already current; `bunNodeHeaders.updateScript` uses the same
+updater. To update standalone node-gyp, change its dependency in
+[`pkgs/node-gyp/source/package.json`](./pkgs/node-gyp/source/package.json),
+regenerate the adjacent lockfile with Bun, and recalculate its `bunDepsHash`.
+
+## Option reference
+
+These are Nix derivation attributes. With the overlay, the builder is
+`pkgs.buildBunPackage`; without it, use `nix-bun.buildBunPackage.${system}`.
 
 | Attribute | Default | Purpose |
 | --- | --- | --- |
@@ -270,265 +303,137 @@ all-platform dependency cache is approximately 1.54 GiB (NAR size).
 | `dontBunInstall` | `false` | Disable the default install phase |
 | `bunConfigHook`, `bunBuildHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
 
-The hooks are also available independently as `pkgs.bunHooks.bunConfigHook`,
-`bunBuildHook`, and `bunInstallHook`. Add the desired hooks to
-`nativeBuildInputs` and provide `bunDeps` when using `stdenv.mkDerivation`.
-Each hook propagates the Bun package it was configured with.
-The config hook runs in `postPatchHooks`, including when `configurePhase` is
-overridden. The build and install hooks register phases only when no phase is
-provided and their opt-out is unset. Each hook enters `bunRoot` and restores the
-working directory afterward. Custom phases that previously relied on the
-configure phase leaving the shell in `bunRoot` must enter it themselves and
-restore the working directory before the next phase.
+### Flags and custom phases
 
-Source selection, unpack and patch settings are passed explicitly to the
-dependency fetcher. This allowlist prevents package phases or setup hooks from
-running during fetching or introducing dependency cycles. Package `nativeBuildInputs`, `buildInputs`, and `env` are
-not forwarded. If a shared `postPatch` runs jq, add jq to both
-`nativeBuildInputs` and `bunDepsNativeBuildInputs`; Git dependencies normally
-need Git only in `bunDepsNativeBuildInputs`. For custom fetcher environment or
-phases, supply `bunDeps = fetchBunDeps { ... };` explicitly. The hook
-flags are derivation attributes. Hooks use stdenv's `concatTo` convention for
-strings, structured arrays, and shell `*FlagsArray` variables. Set
-`__structuredAttrs = true` when hook flag arguments contain spaces; ordinary
-unstructured list attributes become space-separated strings. The fetcher
-shell-escapes its Nix flag lists and preserves spaces in either mode.
-Only put options accepted by all five commands in `bunFlags`; use the
-command-specific flags for other options. `bunBuildFlags` are script arguments,
-so Bun options belong in `bunFlags`.
+Only put options accepted by fetch, install, run, pack, and prune in `bunFlags`;
+use command-specific attributes for other options. `bunBuildFlags` are arguments
+to the build script, so Bun options belong in `bunFlags`.
 
-The default hooks use Bun as the JavaScript runtime and do not add Node.js,
-npm, node-gyp, Python, or Node headers. If no `node` executable is present after
-stdenv assembles `PATH`, they append a permanent store-path `node` symlink to
-Bun. This works in custom shell phases and in patched dependency shebangs.
-An explicitly supplied Node.js runtime takes precedence, matching Bun's own
-fallback behavior. For build scripts that need real Node.js, set
-`nodejs = pkgs.nodejs-slim;` or add a Node.js package to `nativeBuildInputs`.
+Hooks accept strings, structured arrays, and shell `*FlagsArray` variables using
+stdenv's `concatTo` convention. Set `__structuredAttrs = true` when hook flag
+arguments contain spaces; ordinary unstructured list attributes become
+space-separated strings. The fetcher shell-escapes its Nix flag lists and
+preserves spaces in either mode.
 
-Prebuilt Node-API addons do not need an additional hook. To compile dependencies
-using node-gyp, enable the optional toolchain:
+The config hook runs in `postPatchHooks`, even with a custom `configurePhase`.
+The build and install hooks supply phases only when no corresponding phase is
+provided and their opt-out is unset. Each hook restores the working directory;
+custom phases must enter `bunRoot` themselves and restore the directory before
+the next phase. `preBunInstall` and `postBunInstall` run inside `bunRoot`.
 
-```nix
-nodeGyp = true;
-bunRunScripts = true;
-```
+Source selection, unpack, and patch settings are forwarded to the dependency
+fetcher, but package `nativeBuildInputs`, `buildInputs`, and `env` are not.
+If a shared `postPatch` needs jq, add it to both `nativeBuildInputs` and
+`bunDepsNativeBuildInputs`; Git dependencies normally need Git only in
+`bunDepsNativeBuildInputs`. For custom fetcher environment or phases, supply
+`bunDeps = fetchBunDeps { ... };` explicitly. Direct fetcher calls use `hash`
+instead of `bunDepsHash`, and `nativeBuildInputs` instead of
+`bunDepsNativeBuildInputs`.
 
-The flag adds `bunHooks.bunNodeGypHook`, configured with the builder's selected
-Bun and Node.js. To run node-gyp with genuine Node.js and compile against its
-matching sources instead, use:
+### Native toolchain overrides
 
-```nix
-nodeGyp = true;
-bunRunScripts = true;
-nodejs = pkgs.nodejs; # or pkgs.nodejs-slim
-```
+The standalone helpers are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`.
+Override `bunNodeGypHook`'s `bunNodeHeaders` or `python3` argument for another
+header set or Python; custom headers must expose `version`. When using the
+hook independently with another Bun, override its `bun` argument too.
+`buildBunPackage` selects matching hooks automatically through its `bun` and
+`nodejs` attributes.
 
-This selects Node.js for node-gyp's wrapper and `node` commands in the build;
-installed application wrappers still use Bun. Merely adding Node.js to
-`nativeBuildInputs` changes `PATH`, but does not select node-gyp's runtime or
-headers. For independent hooks, use
-`pkgs.bunNodeGypHook.override { nodejs = pkgs.nodejs; }`.
+## Implementation notes and limitations
 
-`bunNodeGypHook` supplies Python, local Node headers, and the standalone upstream
-`node-gyp` package executed with Bun by default. It uses `buildBunPackage` and
-a committed [`bun.lock`](./pkgs/node-gyp/source/bun.lock) to resolve and install its
-transitive dependencies. Node.js and npm are unnecessary for building the tool.
-To update it, change the manifest dependency, regenerate the lockfile with Bun,
-and recalculate `bunDepsHash`. This keeps dependency resolution with Bun rather
-than maintaining a separate list of archives and a custom dependency installer.
-Darwin receives cctools and the same deterministic Xcode-version
-fallback used by Nixpkgs' bundled gyp. The builder's stdenv supplies the compiler;
-add package-specific libraries through the usual inputs. The hook sets
-`npm_config_node_gyp`, `npm_config_nodedir`, `npm_config_target` and
-`npm_config_python` so compilation uses pinned tools and local headers rather
-than downloading them. It does not change Bun's lifecycle trust rules.
+### Dependency cache design
 
-The helper packages are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`. The latter
-fetches the official Node header archive matching the pinned Bun's reported
-`process.versions.node`, independently of any Node.js runtime package. A flake
-check verifies that these versions match. To use another header set or Python,
-override the native hook's `bunNodeHeaders` or `python3` argument; a custom
-header derivation must expose its `version`. If selecting another Bun, use
-`pkgs.bunNodeGypHook.override { bun = myBun; }` alongside `bun = myBun` in the
-builder. With `nodeGyp = true`, the builder selects the hook's Bun automatically.
+The cache is a recursively hashed directory rather than a compressed archive,
+avoiding an extra compression/extraction pass and allowing store deduplication.
+Binary caches can compress NAR transfers independently. Bun handles lockfile
+parsing and cache layout, avoiding a separate parser or npm-cache mapper.
+Projects with only local dependencies can have an empty dependency cache.
+
+Reused caches must have matching format metadata and a byte-for-byte identical
+lockfile. Their output paths depend on the cache name and content hash, so a
+Bun upgrade can reuse a cache when its contents stay unchanged. Regenerate the
+hash when those contents change. Changes to this project's cache format require
+updating the format marker and expected hashes.
+
+Fetching covers all platforms in the lockfile, while offline installation
+selects the build host's dependencies. This lets workspaces and platforms share
+a cache, but can be expensive: workspace selection and install filters do not
+reduce downloads. There is no hash-free `importBunLock` helper; individual
+integrity-based fetches would need separate handling of JSONC, registries, Git
+sources, and Bun's internal cache naming rules.
+
+The fetcher's source-preparation allowlist prevents package phases and setup
+hooks from running during fetching or introducing dependency cycles.
+
+### Writable caches, scripts, and sandboxing
+
+The store cache is read directly by default. `makeCacheWritable` uses a private
+temporary copy, leaving the shared cache unchanged. `bunRunScripts` also enables
+this copy so dependency shebangs can be patched before scripts execute;
+`preBunInstall` runs before that patching. Setting `makeCacheWritable` alone
+leaves scripts disabled.
+
+That preparation covers fetched dependencies. Project, workspace, and local
+`file:` dependency scripts live in the source tree; patch their shebangs in
+`postPatch` if needed. Cache edits can also interfere with dependency patches
+that expect original file contents.
+
+Build with Nix sandboxing enabled to enforce network isolation for arbitrary
+lifecycle and build scripts. Bun's `--offline` applies to package installation;
+scripts can attempt their own downloads. Supply any extra assets separately.
+
+### Installed package layout
+
+Bun's publish-file selection (`files`, ignore rules, and package metadata)
+determines installed package files. The installer uses an archive because Bun
+has no equivalent of npm's machine-readable `pack --json` file list. Dependencies
+come from the pruned installed tree rather than the archive, preserving
+unbundled dependencies and lifecycle-script changes as well as bundled ones.
+
+The directory structure beneath `$out/lib/node_modules/<root-package-name>`
+preserves workspace and local-package links, including hoisted dependencies and
+the isolated linker's shared `.bun` store. Flattening a workspace or copying
+only the selected member would leave broken links after removing the source.
+This is not a minimal dependency closure: other installed workspaces remain.
+Use a custom `installPhase` for bundles or selected artifacts.
+
+Local package links outside `bunRoot` are rejected. Packages selected for packing
+need a name and version; a workspace root without a version acts as a container
+with only its manifest and dependencies installed.
+
+### Runtime and native compatibility
+
+The default hooks add no Node.js, npm, Python, node-gyp, or headers. The fallback
+`node` is a permanent store symlink to Bun, so patched shebangs remain usable
+after the build. An explicitly supplied Node.js on `PATH` takes precedence.
+
+The optional node-gyp toolchain uses pinned tools and local headers to avoid
+automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,
+`npm_config_target`, and `npm_config_python`; Bun's lifecycle trust rules still
+apply. Darwin uses cctools and Nixpkgs' deterministic Xcode-version fallback.
 Bun supports Node-API addons; V8-specific addons may require changes.
 
-To update Bun and its matching headers, run from the repository root:
+Standalone node-gyp is itself built with `buildBunPackage` and a committed
+lockfile, keeping dependency resolution in Bun instead of maintaining a custom
+archive list and installer. Its headers match the pinned Bun's reported
+`process.versions.node`, independently of a Node.js runtime package; a flake
+check verifies the versions match.
 
-```sh
-$(nix-build --no-out-link -A bun.updateScript)
-```
+### Verification boundaries
 
-The `passthru.updateScript` updates Bun's platform hashes with nixpkgs'
-`update-source-version`, builds the selected Bun to query its Node compatibility
-version, then updates the header version and hash. It checks the headers even
-when Bun is already current. Pass a Bun version as an argument to select a
-specific release. `bunNodeHeaders.updateScript` runs the same updater.
+[`tests/`](./tests) covers caches, lifecycle scripts, native builds with Bun and
+Node.js, hooks, flag handling, workspaces with hoisted and isolated linkers,
+pruning, and installed runtime behavior. Fresh-fetch checks use
+`testers.invalidateFetcherByDrvHash` so changed fetcher inputs cannot pass by
+reusing a cached fixed-output result.
 
-The same hook works in development shells:
+Source coverage includes text/JSONC and binary lockfiles, catalogs, duplicate
+Git aliases, foreign optional dependencies, a public GitHub dependency, an HTTP
+tarball, and a non-default registry. The authenticated mock registry checks
+credential rejection, token leakage, and offline installation after removing
+credentials and stopping the server. It does not configure daemon credentials.
+Other Git protocols and private Git authentication remain untested.
 
-```nix
-pkgs.mkShell {
-  packages = [ pkgs.bunNodeGypHook ];
-}
-```
-
-This supplies Bun, the fallback `node` command, node-gyp, Python and local header
-configuration; `mkShell` supplies the compiler. Continue using `bun install`
-normally, or run `node-gyp rebuild` directly from a package with `binding.gyp`.
-Commands inside `.gyp` files can also invoke `node`. Prefer this setup when you
-want a Nix-managed native toolchain: Bun's automatic fallback can fetch node-gyp
-but does not supply the complete pinned compiler/Python/header environment.
-For a Bun shell with just the `node` fallback and no native toolchain, use
-`pkgs.bunHooks.bunNodeFallbackHook` instead.
-
-## Install scripts
-
-Install scripts are disabled by default, for both the project and its
-dependencies. Enable them with:
-
-```nix
-bunRunScripts = true;
-```
-
-This copies the dependency cache to writable temporary storage, runs
-`preBunInstall`, patches shebangs in that copy, and then installs with scripts
-permitted. The shared fixed-output cache is unchanged. `makeCacheWritable`
-is implied; setting it alone still leaves scripts disabled. The
-`lifecycle-shebangs` and `lifecycle-node-shebangs` checks exercise automatic
-repair with Bun and real Node.js, including a broken dependency interpreter
-that is executed during installation.
-
-Bun's [trust rules](https://bun.com/docs/pm/lifecycle) still select which
-dependency scripts run. An explicit `--ignore-scripts` in `bunInstallFlags` or
-upstream configuration can also disable scripts. `bunRunScripts` controls the
-install step; the build hook still runs `bunBuildScript`, and packing always
-skips scripts.
-
-Cache preparation covers fetched dependencies. Project, workspace, and local
-`file:` dependency scripts live in the source tree; patch their shebangs in
-`postPatch` if needed. Cache edits can also affect Bun dependency patches that
-expect the original file contents.
-
-For packages where only a specific setup command is needed, keep automatic
-scripts disabled and run that command after the installed shebangs are patched:
-
-```nix
-nodeGyp = true;
-postBunInstall = ''
-  (
-    cd node_modules/my-native-addon
-    node-gyp rebuild
-  )
-'';
-```
-
-The `native-manual-install` check exercises this path. Supply any required root
-or workspace setup explicitly and in dependency order. Packages that download
-prebuilt binaries can often use Nix-provided binaries and their upstream
-skip-download settings instead.
-
-## Workspaces
-
-For monorepos, keep `bunRoot` at the workspace root containing the lockfile.
-Set `bunWorkspace = "apps/my-app";` to build and expose one workspace's bins
-and manuals. Set `makeCacheWritable = true` when Bun needs to update the cache
-for local packages or workspace bins. Dependencies are installed and pruned
-for the whole workspace by default.
-`bun pm fetch` always downloads the complete workspace lockfile; `bunWorkspace`
-does not narrow that cache. `buildNpmPackage` likewise fetches the complete npm
-lockfile, while its workspace option affects later build/pack/prune commands.
-Bun install/prune filtering can be requested explicitly with `bunInstallFlags`
-and `bunPruneFlags`; it does not reduce fetching. Keeping a single full cache
-allows several workspace packages to share `bunDeps`.
-The installer preserves the project directory layout beneath
-`$out/lib/node_modules/<root-package-name>`, packing linked workspace packages
-separately and copying both root and workspace-local `node_modules`. A root
-without a version acts as a container: only its manifest and dependencies are
-installed. Packages passed to `bun pm pack` require a name and version. This
-preserves hoisted and isolated-linker dependencies after the source is removed.
-Local package links outside `bunRoot` are rejected; include them under that
-root or provide a custom installer. This is not a minimal dependency closure
-for the selected workspace: other installed workspaces are retained. For a
-bundle or a subset of build artifacts, use a custom `installPhase`.
-
-`bunRoot` and `bunWorkspace` serve different purposes. Each hook enters the
-project root; the build hook additionally enters the selected workspace. Neither
-changes the working directory of later phases. Unlike npm's workspace option,
-`bunWorkspace` is a directory, not a package name or filter pattern. Cross
-compilation is not supported.
-
-## Repository layout
-
-`flake.nix` exposes the public API; `default.nix` is the entry point for Nixpkgs
-maintenance tools. Package wiring lives in [`pkgs/default.nix`](./pkgs/default.nix):
-
-```text
-pkgs/
-  build-support/    buildBunPackage, fetchBunDeps, and shared setup hooks
-  bun/              Bun binary packaging and its update script
-  node-gyp/         Standalone tool, Darwin patch, Node headers, and source lockfile
-```
-
-`tests/` contains synthetic fixtures and default integration checks.
-`integration/` contains opt-in derivations based on real nixpkgs packages; build
-one with `nix build .#hydraJobs.<system>.integration.<name>`. The files under
-`pkgs/node-gyp/source/` are the tool's package manifest and Bun lockfile; they
-are kept separate from its Nix expression and patches.
-
-## Scope and checks
-
-The checks exercise direct and writable caches, lifecycle mutations, trusted
-scripts using Bun as `node`, native Node-API addons built with Bun or Node.js
-(implicit, explicit and manually selected node-gyp builds), standalone node-gyp
-cache validation, runtime closure
-checks without Node.js/npm, persistent shebangs, explicit Node.js precedence,
-patched dependencies, independent and replacement hooks, custom phases,
-nested roots, catalog workspaces and JSONC lockfiles, installed workspaces with
-both hoisted and isolated linkers, scoped wrappers and manuals, structured flag
-arrays, pruning, and cache validation. They also cover a binary lockfile,
-duplicate identical Git URLs under two aliases, an explicitly Windows-only optional dependency, an authenticated local
-registry, and a fixture combining a pinned Git dependency, an HTTP tarball, and
-a non-default registry. Distinct cache output names and derivation salts force independent platform fetches when
-fetcher inputs change. Run `nix flake check` on each supported system to verify
-the caches and builds. `nix flake check --all-systems` evaluates other systems
-but does not build their checks on the current host. To build all supported
-systems through configured remote builders, use:
-
-```sh
-nix build --no-link --keep-going --impure --expr '
-  let flake = builtins.getFlake (toString ./.);
-  in builtins.concatLists (map
-    (system: builtins.attrValues flake.checks.${system})
-    (builtins.attrNames flake.checks))
-'
-```
-
-Fresh-fetch checks use `testers.invalidateFetcherByDrvHash` so changed fetcher
-inputs cannot pass by reusing a cached fixed-output result. Changes to the cache
-format also require updating its format marker and expected hashes.
-
-The ordinary build must run with Nix sandboxing enabled to enforce network
-isolation for arbitrary lifecycle/build scripts. Bun's `--offline` governs the
-package installation itself; it does not prevent a project's scripts from
-performing their own downloads. Native dependencies that download extra assets
-in scripts need those assets supplied separately.
-
-The Git, tarball, and registry fixture covers one public GitHub repository, one
-npm tarball, and the public Yarn registry. The authentication fixture exercises
-a bearer-token registry, rejects missing/incorrect credentials, checks the cache
-for token leakage, and installs offline after the server stops and the token is
-unset. Other Git protocols and private Git authentication remain untested.
-
-A hash-free `importBunLock` is left for a follow-up. The intended approach is to
-parse the text lockfile, fetch individual tarballs with their recorded integrity
-hashes, and assemble the cache without network access. That also needs explicit
-handling for JSONC, custom registries, Git sources, and Bun's cache naming rules
-(including prerelease versions). The fixed-output cache helper does not rely on
-those internal naming rules.
-
-The new commands are described in the
-[Bun 1.4.4 release notes](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
-
-For the corresponding npm, Yarn, and pnpm packaging patterns, see the
+For upstream context, see the
+[Bun 1.4.4 release notes](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch) and
 [Nixpkgs JavaScript documentation](https://github.com/NixOS/nixpkgs/blob/master/doc/languages-frameworks/javascript.section.md).
