@@ -21,4 +21,10 @@ assert self.bunNodeHeaders.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeHe
 assert scope.buildBunPackage ? override;
 assert scope.fetchBunDeps ? override;
 assert extended.bun == pkgs.bun;
+assert
+  (scope.bunNodeGypHook.override { nodejs = pkgs.nodejs; }).drvPath
+  == (scope.bunHooks.override { nodejs = pkgs.nodejs; }).bunNodeGypHook.drvPath;
+assert
+  (scope.bunNodeGypHook.override { python3 = pkgs.python312; }).drvPath
+  == (scope.bunHooks.override { python3 = pkgs.python312; }).bunNodeGypHook.drvPath;
 pkgs.runCommand "bun-flake-api" { } "touch $out"

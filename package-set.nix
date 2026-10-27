@@ -1,29 +1,15 @@
 # Shared by the standalone package scope and the optional overlay.
-{ callPackage }:
+{ callPackage, lib }:
+let
+  bunHooks = callPackage ./hooks { nodejs = null; };
+in
 {
   bun = callPackage ./bun.nix { };
   fetchBunDeps = callPackage ./fetch-bun-deps.nix { };
-  bunHooks = callPackage ./hooks { nodejs = null; };
+  inherit bunHooks;
   bunNodeGyp = callPackage ./node-gyp.nix { nodejs = null; };
   bunNodeHeaders = callPackage ./node-headers.nix { };
-  # Preserve callPackage overrides on the public alias (e.g. custom headers).
-  bunNodeGypHook = callPackage (
-    {
-      bun,
-      bunNodeGyp,
-      bunNodeHeaders,
-      python3,
-      nodejs ? null,
-    }:
-    (callPackage ./hooks {
-      inherit
-        bun
-        bunNodeGyp
-        bunNodeHeaders
-        python3
-        nodejs
-        ;
-    }).bunNodeGypHook
-  ) { nodejs = null; };
+  # Delegate public hook overrides to the shared hook set.
+  bunNodeGypHook = lib.makeOverridable (args: (bunHooks.override args).bunNodeGypHook) { };
   buildBunPackage = callPackage ./build-bun-package.nix { };
 }

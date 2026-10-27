@@ -17,7 +17,7 @@
       overlays.default =
         final: prev:
         let
-          packages = import ./package-set.nix { inherit (final) callPackage; };
+          packages = import ./package-set.nix { inherit (final) callPackage lib; };
         in
         builtins.removeAttrs packages [ "bun" ]
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.versionOlder prev.bun.version packages.bun.version) {
@@ -29,7 +29,11 @@
           pkgs = import nixpkgs { inherit system; };
         in
         nixpkgs.lib.makeScope pkgs.newScope (
-          scope: import ./package-set.nix { inherit (scope) callPackage; }
+          scope:
+          import ./package-set.nix {
+            inherit (scope) callPackage;
+            inherit (pkgs) lib;
+          }
         )
       );
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
