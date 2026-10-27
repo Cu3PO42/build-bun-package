@@ -7,12 +7,9 @@
   installShellFiles,
   makeWrapper,
   openssl,
+  callPackage,
   runCommand,
   bunNodeHeaders,
-  writeShellScript,
-  curl,
-  jq,
-  common-updater-scripts,
   cctools,
   darwin,
   rcodesign,
@@ -82,24 +79,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         hash = "sha256-4ERutVmVdy65iUvrrppr42jZhai5Jx7hJEhvmUbu3XY=";
       };
     };
-    updateScript = writeShellScript "update-bun" ''
-      set -o errexit
-      export PATH="${
-        lib.makeBinPath [
-          curl
-          jq
-          common-updater-scripts
-        ]
-      }"
-      NEW_VERSION=$(curl --silent https://api.github.com/repos/oven-sh/bun/releases/latest | jq '.tag_name | ltrimstr("bun-v")' --raw-output)
-      if [[ "${finalAttrs.version}" = "$NEW_VERSION" ]]; then
-          echo "The new version same as the old version."
-          exit 0
-      fi
-      for platform in ${lib.escapeShellArgs finalAttrs.meta.platforms}; do
-        update-source-version "bun" "$NEW_VERSION" --ignore-same-version --source-key="sources.$platform"
-      done
-    '';
+    updateScript = callPackage ./update.nix { };
     tests.node-headers = runCommand "bun-node-headers-version" { } ''
       actual=$(${lib.getExe finalAttrs.finalPackage} -p process.versions.node)
       expected=${lib.escapeShellArg bunNodeHeaders.version}

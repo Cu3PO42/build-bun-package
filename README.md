@@ -201,12 +201,25 @@ add package-specific libraries through the usual inputs. The hook sets
 than downloading them. It does not change Bun's lifecycle trust rules.
 
 The helper packages are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`. The latter
-fetches the official Node 26.3.0 header archive, independently of any Node.js
-runtime package. To use another header set or Python, override the native hook's
-`bunNodeHeaders` or `python3` argument; a custom header derivation must expose
-its `version`. If selecting another Bun, use
+fetches the official Node header archive matching the pinned Bun's reported
+`process.versions.node`, independently of any Node.js runtime package. A flake
+check verifies that these versions match. To use another header set or Python,
+override the native hook's `bunNodeHeaders` or `python3` argument; a custom
+header derivation must expose its `version`. If selecting another Bun, use
 `pkgs.bunNodeGypHook.override { bun = myBun; }` alongside `bun = myBun` in the
 builder. Bun supports Node-API addons; V8-specific addons may require changes.
+
+To update Bun and its matching headers, run from the repository root:
+
+```sh
+$(nix-build --no-out-link -A bun.updateScript)
+```
+
+The `passthru.updateScript` updates Bun's platform hashes with nixpkgs'
+`update-source-version`, builds the selected Bun to query its Node compatibility
+version, then updates the header version and hash. It checks the headers even
+when Bun is already current. Pass a Bun version as an argument to select a
+specific release. `bunNodeHeaders.updateScript` runs the same updater.
 
 The same hook works in development shells:
 
