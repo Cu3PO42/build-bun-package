@@ -24,7 +24,8 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 ## AI Disclosure
 
 This code was written primarily by LLMs (mostly GPT-6.1 Sol) under my direction.
-However, all of the code except for tests was reviewed by me (a human).
+However, all of the core code excluding tests was reviewed by me (a human).
+Further reviews are in progress.
 
 Beware that any content beyond this line is also at least partially written by AI.
 
