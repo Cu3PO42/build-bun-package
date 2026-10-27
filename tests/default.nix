@@ -163,8 +163,6 @@ in
 
   registry-auth = import ./registry-auth.nix { inherit pkgs; };
 
-  swagger-typescript-api = pkgs.callPackage ./swagger-typescript-api.nix { };
-
   node-headers-version = pkgs.bun.tests.node-headers;
 
   workspace-installed = pkgs.buildBunPackage {
