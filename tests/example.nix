@@ -14,7 +14,6 @@ buildBunPackage {
   bunDeps = dependencyCache;
   inherit dontBunPrune;
   bunDepsHash = "sha256-M+eG9pFxPpIfajcGBcnaPhOgtQxvYojWTsTExHVHo7c=";
-  bunInstallFlags = [ "--ignore-scripts" ];
   doCheck = true;
   checkPhase = ''
     pushd "${projectRoot}" >/dev/null

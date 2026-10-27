@@ -16,7 +16,6 @@ buildBunPackage {
   src = ./source;
   bunDepsHash = "sha256-CB6mi3g6vG2m9Oxj41QMWxY9WMfywpKu9t9yZrJ/+S0=";
   nativeBuildInputs = [ makeWrapper ];
-  bunInstallFlags = [ "--ignore-scripts" ];
   dontBunBuild = true;
 
   # Match Nixpkgs' deterministic Xcode/CLT fallback.

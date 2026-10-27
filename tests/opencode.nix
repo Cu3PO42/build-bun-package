@@ -62,7 +62,6 @@ buildBunPackage (finalAttrs: {
     "./packages/desktop"
     "--filter"
     "./packages/app"
-    "--ignore-scripts"
     "--no-progress"
   ];
 

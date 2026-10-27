@@ -55,9 +55,11 @@ the exact revision recorded only in `flake.lock`.
    `.nix-bun/format-version` and a byte-for-byte copy of the selected lockfile.
    No dependency lifecycle scripts run during fetching.
 2. The config hook validates the cache and lockfile, then runs `bun install
-   --offline --frozen-lockfile --backend copyfile`. Bun runs lifecycle scripts
-   according to its trust rules during this install. Installed dependencies are
-   made writable and their shebangs patched. `BUN_INSTALL_GLOBAL_STORE=0` keeps
+   --offline --frozen-lockfile --backend copyfile --ignore-scripts` by default.
+   With `bunRunScripts = true`, it first copies the cache and patches its
+   shebangs, then lets Bun run scripts according to its trust rules during
+   installation. Installed dependencies are made writable and their shebangs
+   patched afterward as well. `BUN_INSTALL_GLOBAL_STORE=0` keeps
    dependencies in the package tree.
 3. The build hook runs `bun run build` by default.
 4. The install hook uses `bun pm pack --ignore-scripts` to select package files,
@@ -72,10 +74,10 @@ change. Fresh-fetch checks deliberately invalidate test outputs when fetcher
 inputs change, independently of this reuse policy.
 
 By default Bun reads the store cache directly. Set `makeCacheWritable = true`
-when dependency patches or lifecycle scripts modify existing package files or
-when Bun needs to write to the cache. Some lifecycle-enabled installs require
-cache writes even when installed files use `copyfile`. This option copies the
-cache to `$TMPDIR` first.
+when dependency patches or installation need to write to the cache. This copies
+it to `$TMPDIR` first. `bunRunScripts = true` always uses the writable copy and
+patches its shebangs automatically, so it needs no additional
+`makeCacheWritable` setting.
 
 The archive applies Bun’s publish-file selection (`files`, ignore rules and
 package metadata) to the current package. It does not pack the dependency graph,
@@ -220,7 +222,8 @@ all-platform dependency cache is approximately 1.54 GiB (NAR size).
 | `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
 | `bunWorkspace` | `null` | Workspace directory relative to `bunRoot`; selects its build script, bins and manuals |
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
-| `bunInstallFlags` | `[]` | Extra install arguments, e.g. `[ "--ignore-scripts" ]` |
+| `bunInstallFlags` | `[]` | Extra install arguments |
+| `bunRunScripts` | `false` | Copy the cache, patch its shebangs, and permit Bun's trusted install scripts; otherwise append `--ignore-scripts` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
 | `bunFlags` | `[]` | Common Bun options before script names, applied to fetch, install, run, pack and prune; e.g. `[ "--silent" ]` |
 | `bunBuildFlags` | `[]` | Arguments passed to the build script |
@@ -228,8 +231,8 @@ all-platform dependency cache is approximately 1.54 GiB (NAR size).
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
 | `bunPruneFlags` | `[]` | Extra arguments to `bun prune` |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
-| `preBunInstall`, `postBunInstall` | unset | Hooks around offline installation; the pre-hook can patch a writable cache before lifecycle scripts |
-| `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage |
+| `preBunInstall`, `postBunInstall` | unset | Hooks around offline installation; the pre-hook runs before automatic cache shebang patching |
+| `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage; implied by `bunRunScripts` |
 | `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
 | `dontBunInstall` | `false` | Disable the default install phase |
 | `bunConfigHook`, `bunBuildHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
@@ -273,7 +276,7 @@ using node-gyp, enable the optional toolchain:
 
 ```nix
 nodeGyp = true;
-makeCacheWritable = true; # when installation needs to modify the cache
+bunRunScripts = true;
 ```
 
 The flag adds `bunHooks.bunNodeGypHook`, configured with the builder's selected
@@ -282,6 +285,7 @@ matching sources instead, use:
 
 ```nix
 nodeGyp = true;
+bunRunScripts = true;
 nodejs = pkgs.nodejs; # or pkgs.nodejs-slim
 ```
 
@@ -346,17 +350,37 @@ For a Bun shell with just the `node` fallback and no native toolchain, use
 
 ## Install scripts
 
-By default Bun selects and runs lifecycle scripts during the initial offline
-install. Shebang patching happens afterward. This follows Bun's trust and
-scheduling rules, but scripts invoking executables with hardcoded interpreter
-paths can fail before patching.
+Install scripts are disabled by default, for both the project and its
+dependencies. Enable them with:
 
-For packages where the required setup is known, disable automatic scripts and
-perform only that setup in `postBunInstall`, after shebangs have been patched:
+```nix
+bunRunScripts = true;
+```
+
+This copies the dependency cache to writable temporary storage, runs
+`preBunInstall`, patches shebangs in that copy, and then installs with scripts
+permitted. The shared fixed-output cache is unchanged. `makeCacheWritable`
+is implied; setting it alone still leaves scripts disabled. The
+`lifecycle-shebangs` and `lifecycle-node-shebangs` checks exercise automatic
+repair with Bun and real Node.js, including a broken dependency interpreter
+that is executed during installation.
+
+Bun's [trust rules](https://bun.com/docs/pm/lifecycle) still select which
+dependency scripts run. An explicit `--ignore-scripts` in `bunInstallFlags` or
+upstream configuration can also disable scripts. `bunRunScripts` controls the
+install step; the build hook still runs `bunBuildScript`, and packing always
+skips scripts.
+
+Cache preparation covers fetched dependencies. Project, workspace, and local
+`file:` dependency scripts live in the source tree; patch their shebangs in
+`postPatch` if needed. Cache edits can also affect Bun dependency patches that
+expect the original file contents.
+
+For packages where only a specific setup command is needed, keep automatic
+scripts disabled and run that command after the installed shebangs are patched:
 
 ```nix
 nodeGyp = true;
-bunInstallFlags = [ "--ignore-scripts" ];
 postBunInstall = ''
   (
     cd node_modules/my-native-addon
@@ -365,52 +389,10 @@ postBunInstall = ''
 '';
 ```
 
-`--ignore-scripts` disables the project's scripts too. Run any required root or
-workspace setup explicitly, in dependency order. `bun run install` in a chosen
-package is another option if its declared install script is appropriate; it
-does not reproduce the full install lifecycle. The `native-manual-install`
-check compiles and loads an addon through this explicit setup path.
-Packages that only download prebuilt binaries can often use Nix-provided
-binaries and the upstream package's skip-download setting instead. Keep
-package-specific inputs and environment settings in the ordinary build.
-
-When retaining Bun's automatic lifecycle execution, a `preBunInstall` hook can
-patch just the affected files in a writable cache before installation:
-
-```nix
-makeCacheWritable = true;
-preBunInstall = ''
-  patchShebangs "$BUN_INSTALL_CACHE_DIR"
-'';
-```
-
-Prefer a targeted patch when a Bun dependency patch needs the original bytes.
-The `lifecycle-shebangs` check exercises cache preparation. Changing the upstream
-script to invoke an available interpreter explicitly is another source-patching
-option.
-
-Automatic discovery is feasible for a diagnostic list, but a general script
-runner would need to reproduce package-manager behavior. Bun's
-[lifecycle documentation](https://bun.com/docs/pm/lifecycle) describes trust
-selection and script environment variables. Its
-[implementation](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/PackageManager/PackageManagerLifecycle.rs)
-also handles implicit node-gyp builds and scheduling. A compatible replay must
-account for the installed dependency graph, platform/optional filtering,
-multiple versions and workspace links, source-specific prepare scripts, working
-directories, PATH, and lifecycle environment. Reading `package.json` scripts
-alone cannot provide that execution plan. Maintaining all of this here would
-be a second lifecycle implementation, so we keep explicit package setup as
-the alternative to Bun's own runner.
-
-Bun 1.4.4 has no package-manager `rebuild` command. An install with
-`--ignore-scripts` followed by a normal install does not replay skipped
-dependency scripts. The [`bun pm` commands](https://bun.com/docs/pm/cli/pm)
-include `ls --trusted` and `untrusted` for inspection; `trust --dry-run` concerns
-untrusted packages, rather than the full install plan. `bun pm trust` changes
-trust configuration, and blanket `npm rebuild` can run scripts Bun blocks.
-A Bun command to replay already-trusted scripts, or an upstream hook between
-linking packages and running scripts, would let us adopt npm's
-install/patch/rebuild ordering without maintaining a separate runner.
+The `native-manual-install` check exercises this path. Supply any required root
+or workspace setup explicitly and in dependency order. Packages that download
+prebuilt binaries can often use Nix-provided binaries and their upstream
+skip-download settings instead.
 
 ## Workspaces
 

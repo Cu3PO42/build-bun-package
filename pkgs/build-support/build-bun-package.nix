@@ -27,6 +27,7 @@ lib.extendMkDerivation {
       nodejs ? null,
       nodeGyp ? false,
       bunWorkspace ? null,
+      bunRunScripts ? false,
       bunFlags ? [ ],
       bunFetchFlags ? [ ],
       bunInstallFlags ? [ ],
@@ -89,6 +90,7 @@ lib.extendMkDerivation {
         nodejs
         nodeGyp
         bunWorkspace
+        bunRunScripts
         bunFlags
         bunFetchFlags
         bunInstallFlags

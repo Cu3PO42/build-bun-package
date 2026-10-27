@@ -35,9 +35,9 @@ bunConfigHook() {
     # The global store creates links outside node_modules that cannot be shipped.
     export BUN_INSTALL_GLOBAL_STORE=0
     mkdir -p "$HOME"
-    # Read the hash-verified cache directly unless installation needs to mutate it.
+    # Lifecycle preparation and other cache mutations need a private copy.
     export BUN_INSTALL_CACHE_DIR="$bunDeps"
-    if [[ -n ${makeCacheWritable-} ]]; then
+    if [[ -n ${makeCacheWritable-} || -n ${bunRunScripts-} ]]; then
         BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"
         cp -R "$bunDeps" "$BUN_INSTALL_CACHE_DIR"
         chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
@@ -45,14 +45,16 @@ bunConfigHook() {
 
     runHook preBunInstall
 
-    # Unlike npm, Bun has no rebuild command. A second install after
-    # --ignore-scripts does not replay trusted dependency scripts either.
-    # Keep Bun's trust and dependency ordering by running scripts in this install.
-    # Packages that need shebang fixes before scripts run must be patched in
-    # the source/cache before this command (see README.md).
-    # copyfile keeps mutable installed files separate from the store/cache inode.
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
+    if [[ -n ${bunRunScripts-} ]]; then
+        # Fix dependency executables before Bun runs lifecycle scripts. Keep
+        # interpreter paths out of the portable fixed-output cache itself.
+        patchShebangs "$BUN_INSTALL_CACHE_DIR"
+    else
+        installFlags+=(--ignore-scripts)
+    fi
+    # copyfile keeps installed files separate from the store/cache inode.
     if ! bun install "${installFlags[@]}" --offline --frozen-lockfile --backend copyfile; then
         echo 'bunConfigHook: offline install failed; check cache contents and lockfile, or try makeCacheWritable = true' >&2
         exit 1

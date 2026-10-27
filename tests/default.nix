@@ -26,7 +26,6 @@ let
     src = ./fixtures/duplicate-git;
     bunDepsHash = "sha256-pmMIv9yvR/9ZHUg70KFsled0t/KH5RIrj9ICG/gT2ak=";
     bunDepsNativeBuildInputs = [ pkgs.git ];
-    bunInstallFlags = [ "--ignore-scripts" ];
     dontBunBuild = true;
     doInstallCheck = true;
     installCheckPhase = ''
@@ -40,7 +39,6 @@ let
     version = "1";
     src = ./fixtures/foreign-optional;
     bunDepsHash = "sha256-jGdGNvnXNZdtYR55CYEZKhdz4Ss67l4je8+iziQ4tCg=";
-    bunInstallFlags = [ "--ignore-scripts" ];
     dontBunBuild = true;
     doInstallCheck = true;
     installCheckPhase = ''
@@ -56,7 +54,7 @@ let
     version = "1";
     src = ./fixtures/basic;
     bunDeps = example.bunDeps;
-    makeCacheWritable = true;
+    bunRunScripts = true;
     nativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq --arg script "node -e \"if (!process.versions.bun) process.exit(1); require('fs').appendFileSync('node_modules/is-odd/index.js', '\\n// lifecycle mutation\\n')\"" '.scripts.postinstall = $script' package.json > package.json.new
@@ -70,7 +68,7 @@ let
     version = "1";
     src = ./fixtures/native;
     nodeGyp = true;
-    makeCacheWritable = true;
+    bunRunScripts = true;
     bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
     # Both node-gyp and ordinary node commands must run with Bun.
     preBuild = ''
@@ -85,6 +83,33 @@ let
       test "$(node -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
     '';
   };
+
+  lifecycle-shebangs = example.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunRunScripts = true;
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
+    postPatch = ''
+      jq '.scripts.postinstall = "node_modules/is-odd/index.js"' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    preBunInstall = ''
+      test "$BUN_INSTALL_CACHE_DIR" != "$bunDeps"
+      script=$(find "$BUN_INSTALL_CACHE_DIR" -type f -path '*/is-odd@*/index.js')
+      test -n "$script"
+      sed -i '1i #!/missing/interpreter/node' "$script"
+      chmod u+x "$script"
+    '';
+    postBunInstall = ''
+      test -x node_modules/is-odd/index.js
+      test "$(head -n1 node_modules/is-odd/index.js)" = "#!$(command -v node)"
+      original=$(find "$bunDeps" -type f -path '*/is-odd@*/index.js')
+      ! head -n1 "$original" | grep -q '^#!'
+      touch lifecycle-installed
+    '';
+    postInstallCheck = ''
+      test -f lifecycle-installed
+    '';
+  });
 
   catalogs = pkgs.buildBunPackage {
     pname = "bun-catalog-example";
@@ -280,7 +305,7 @@ in
   # Install without scripts, then compile only the explicitly chosen addon
   # after bunConfigHook has patched the installed dependency shebangs.
   native-manual-install = native-addon.overrideAttrs (_: {
-    bunInstallFlags = [ "--ignore-scripts" ];
+    bunRunScripts = false;
     postBunInstall = ''
       test ! -e node_modules/native-answer/build/Release/answer.node
       (
@@ -305,29 +330,12 @@ in
     doInstallCheck = false;
   });
 
-  lifecycle-shebangs = example.overrideAttrs (old: {
-    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
-    bunInstallFlags = [ ];
-    makeCacheWritable = true;
-    bunDepsNativeBuildInputs = [ pkgs.jq ];
-    postPatch = ''
-      jq '.scripts.postinstall = "node_modules/is-odd/index.js"' package.json > package.json.new
-      mv package.json.new package.json
-    '';
-    preBunInstall = ''
-      script=$(find "$BUN_INSTALL_CACHE_DIR" -type f -path '*/is-odd@*/index.js')
-      test -n "$script"
-      sed -i '1i #!/missing/interpreter/node' "$script"
-      chmod u+x "$script"
-      patchShebangs "$BUN_INSTALL_CACHE_DIR"
-    '';
-    postBunInstall = ''
-      test -x node_modules/is-odd/index.js
-      touch lifecycle-installed
-    '';
-    postInstallCheck = ''
-      test -f lifecycle-installed
-    '';
+  inherit lifecycle-shebangs;
+
+  lifecycle-node-shebangs = lifecycle-shebangs.overrideAttrs (_: {
+    nodejs = pkgs.nodejs;
+    __structuredAttrs = true;
+    makeCacheWritable = false; # Scripts still require a writable copy.
   });
 
   trusted-lifecycle = pkgs.buildBunPackage {
@@ -335,9 +343,30 @@ in
     version = "1";
     src = ./fixtures/trusted;
     bunDepsHash = "sha256-yp69Jks7nsEvClpdP31p6UfQbxofhf/ASkSkckPjeyw=";
-    makeCacheWritable = true;
+    bunRunScripts = true;
     doInstallCheck = true;
     installCheckPhase = ''grep -q 'trusted dependency script' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"'';
+  };
+
+  lifecycle-disabled = pkgs.buildBunPackage {
+    pname = "bun-lifecycle-disabled";
+    version = "1";
+    src = ./fixtures/trusted;
+    bunDepsHash = "sha256-yp69Jks7nsEvClpdP31p6UfQbxofhf/ASkSkckPjeyw=";
+    nativeBuildInputs = [ pkgs.jq ];
+    postPatch = ''
+      jq '.scripts.postinstall = "touch root-script-ran"' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    bunDepsNativeBuildInputs = [ pkgs.jq ];
+    __structuredAttrs = true;
+    makeCacheWritable = true; # Bun's patchedDependencies need cache writes.
+    preBunInstall = ''test "$BUN_INSTALL_CACHE_DIR" != "$bunDeps"'';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      test ! -e root-script-ran
+      ! grep -q 'trusted dependency script' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"
+    '';
   };
 
   git-tarball-registry = pkgs.buildBunPackage {
@@ -345,7 +374,6 @@ in
     version = "1";
     src = ./fixtures/sources;
     bunDepsHash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
-    bunInstallFlags = [ "--ignore-scripts" ];
     bunDepsNativeBuildInputs = [ pkgs.git ];
     dontBunBuild = true;
     installPhase = ''
@@ -365,7 +393,6 @@ in
       pkgs.git
       pkgs.jq
     ];
-    bunInstallFlags = [ "--ignore-scripts" ];
     dontBunBuild = true;
     postPatch = ''
       jq '.bundledDependencies = ["is-odd"]' package.json > package.json.new
@@ -384,7 +411,6 @@ in
     version = "1";
     src = ./fixtures/binary-lock;
     bunDepsHash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
-    bunInstallFlags = [ "--ignore-scripts" ];
     doInstallCheck = true;
     installCheckPhase = ''test "$("$out/bin/bun-example" 3)" = odd'';
   };
@@ -395,7 +421,6 @@ in
     src = ./fixtures/patched;
     bunDepsHash = "sha256-lT7chnHqWem8M+vLBqBTJLvbtpSoGs/D1KQMB1Zne3Y=";
     makeCacheWritable = true;
-    bunInstallFlags = [ "--ignore-scripts" ];
     doInstallCheck = true;
     installCheckPhase = ''grep -q 'patched by fixture' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"'';
   };
@@ -418,6 +443,7 @@ in
     configurePhase = ''
       test -d node_modules/is-odd
       test "$BUN_INSTALL_GLOBAL_STORE" = 0
+      test "$BUN_INSTALL_CACHE_DIR" = "$bunDeps"
     '';
   });
 
@@ -458,7 +484,6 @@ in
     version = "1";
     src = ./fixtures/basic;
     bunDeps = example.bunDeps;
-    bunInstallFlags = [ "--ignore-scripts" ];
     bunBuildScript = "build";
     nativeBuildInputs = [
       pkgs.bunHooks.bunConfigHook
@@ -475,7 +500,6 @@ in
       version = "1";
       src = ./fixtures/basic;
       bunDeps = example.bunDeps;
-      bunInstallFlags = [ "--ignore-scripts" ];
       bunBuildScript = if final.pname == "functional-script" then "build" else "alternate";
       nativeBuildInputs = [ pkgs.jq ];
       postPatch = ''
@@ -545,7 +569,6 @@ in
       version = "1";
       src = ./fixtures/basic;
       bunDeps = example.bunDeps;
-      bunInstallFlags = [ "--ignore-scripts" ];
       bunBuildHook = replacement;
       doInstallCheck = true;
       installCheckPhase = "test -f replacement-ran";
@@ -556,7 +579,6 @@ in
     version = "1";
     src = ./fixtures/basic;
     bunDeps = example.bunDeps;
-    bunInstallFlags = [ "--ignore-scripts" ];
     makeWrapperArgs = [
       "--set"
       "BUN_TEST_WRAPPER"
@@ -670,6 +692,9 @@ in
           (_: {
             hash = pkgs.lib.fakeHash;
           });
+      scripted = example.overrideAttrs (_: {
+        bunRunScripts = true;
+      });
       alternateNodejs = pkgs.nodejs_22;
       alternateNode = example.overrideAttrs (_: {
         nodejs = alternateNodejs;
@@ -702,6 +727,9 @@ in
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
     assert builtins.elem (toString alternateNodejs) (map toString alternateNode.nativeBuildInputs);
     assert example.nodejs == null;
+    assert !example.bunRunScripts;
+    assert scripted.bunRunScripts;
+    assert scripted.bunDeps.drvPath == example.bunDeps.drvPath;
     assert
       example.updateScript == pkgs.nix-update-script {
         extraArgs = [
