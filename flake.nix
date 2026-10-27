@@ -51,23 +51,27 @@
           };
         }
       );
-      packages = forAllSystems (system: {
-        inherit (self.legacyPackages.${system}) bun;
-        opencode = self.legacyPackages.${system}.callPackage ./tests/opencode.nix { };
-        swagger-typescript-api =
-          self.legacyPackages.${system}.callPackage ./tests/swagger-typescript-api.nix
-            { };
-        kulala-core = self.legacyPackages.${system}.callPackage ./tests/kulala-core.nix { };
-        gitlab-ci-local =
-          self.legacyPackages.${system}.callPackage ./tests/gitlab-ci-local.nix
-            { };
-        filen-cli = self.legacyPackages.${system}.callPackage ./tests/filen-cli.nix { };
-        balatro-mod-manager-web =
-          self.legacyPackages.${system}.callPackage ./tests/balatro-mod-manager-web.nix
-            { };
-        handy-frontend = self.legacyPackages.${system}.callPackage ./tests/handy-frontend.nix { };
-        models-dev = self.legacyPackages.${system}.callPackage ./tests/models-dev.nix { };
-      });
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = self.legacyPackages.${system};
+          basePkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          inherit (pkgs) bun;
+          opencode = pkgs.callPackage ./tests/opencode.nix { };
+          swagger-typescript-api = pkgs.callPackage ./tests/swagger-typescript-api.nix { };
+          kulala-core = pkgs.callPackage ./tests/kulala-core.nix { };
+          gitlab-ci-local = pkgs.callPackage ./tests/gitlab-ci-local.nix { };
+          filen-cli = pkgs.callPackage ./tests/filen-cli.nix { };
+          balatro-mod-manager-web = pkgs.callPackage ./tests/balatro-mod-manager-web.nix { };
+          handy-frontend = pkgs.callPackage ./tests/handy-frontend.nix { };
+          models-dev = pkgs.callPackage ./tests/models-dev.nix { };
+        }
+        // nixpkgs.lib.optionalAttrs basePkgs.stdenv.hostPlatform.isLinux {
+          convertx = pkgs.callPackage ./tests/convertx.nix { };
+        }
+      );
     }
     // nixpkgs.lib.genAttrs [
       "bun"
