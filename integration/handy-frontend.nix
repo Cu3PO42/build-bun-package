@@ -10,7 +10,6 @@
 buildBunPackage (finalAttrs: {
   pname = "handy-frontend";
   version = "0.9.8";
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

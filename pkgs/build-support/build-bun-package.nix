@@ -135,6 +135,7 @@ lib.extendMkDerivation {
         };
       }
       // (args.passthru or { });
+      __structuredAttrs = args.__structuredAttrs or true;
       strictDeps = args.strictDeps or true;
       dontStrip = args.dontStrip or true;
       meta = (args.meta or { }) // {

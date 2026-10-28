@@ -22,7 +22,6 @@ buildBunPackage (finalAttrs: {
   pname = "opencode";
   version = "2.1.1";
 
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

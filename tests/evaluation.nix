@@ -73,6 +73,14 @@
         bunBuildScript = "build";
       });
     in
+    assert example.__structuredAttrs;
+    assert functional.__structuredAttrs;
+    assert
+      !(pkgs.buildBunPackage {
+        pname = "unstructured-bun";
+        version = "1";
+        __structuredAttrs = false;
+      }).__structuredAttrs;
     assert alternate.bunDeps.outPath == example.bunDeps.outPath;
     assert alternate.bunDeps.drvPath != example.bunDeps.drvPath;
     assert rebuilt.bunDeps.outPath == example.bunDeps.outPath;

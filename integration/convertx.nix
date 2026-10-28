@@ -32,7 +32,6 @@
 buildBunPackage (finalAttrs: {
   pname = "convertx";
   version = "0.19.0";
-  __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "C4illin";

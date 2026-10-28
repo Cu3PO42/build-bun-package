@@ -11,7 +11,6 @@
 buildBunPackage (finalAttrs: {
   pname = "models-dev";
   version = "0.0.5-unstable-2026-10-17";
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

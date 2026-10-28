@@ -1,5 +1,13 @@
 { pkgs, example }:
 {
+  unstructured-attrs = example.overrideAttrs (_: {
+    __structuredAttrs = false;
+    bunBuildFlags = [ "--minify" ];
+    preBuild = ''
+      test "$bunBuildFlags" = --minify
+    '';
+  });
+
   output-isolation = example.overrideAttrs (old: {
     disallowedReferences = [ old.bunDeps ];
     postInstallCheck = ''
@@ -59,7 +67,6 @@
       });
 
   structured-flags = example.overrideAttrs (old: {
-    __structuredAttrs = true;
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
     bunFlags = [
       "--no-env-file"

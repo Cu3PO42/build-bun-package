@@ -23,7 +23,6 @@ in
 buildBunPackage (finalAttrs: {
   pname = "equibop";
   version = "3.2.2";
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

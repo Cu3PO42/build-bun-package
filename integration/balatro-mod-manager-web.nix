@@ -10,7 +10,6 @@
 buildBunPackage (finalAttrs: {
   pname = "balatro-mod-manager-web";
   version = "0.4.1";
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

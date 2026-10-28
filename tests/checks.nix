@@ -35,7 +35,6 @@ in
   };
 
   check-script-flags = checked.overrideAttrs (_: {
-    __structuredAttrs = true;
     bunCheckScript = "verify";
     bunCheckFlags = [
       "argument with spaces"

@@ -88,6 +88,11 @@ nix-bun.buildBunPackage.${system} {
 }
 ```
 
+The builder enables `__structuredAttrs` by default. In custom shell phases,
+list attributes are Bash arrays; use `env` for values that child processes need
+in their environment. Set `__structuredAttrs = false;` for compatibility with
+phases that require the older attribute representation.
+
 Supported systems are `aarch64-darwin`, `aarch64-linux`, and `x86_64-linux`.
 Cross compilation is not supported.
 

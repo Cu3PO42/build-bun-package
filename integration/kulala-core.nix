@@ -11,7 +11,6 @@
 buildBunPackage (finalAttrs: {
   pname = "kulala-core";
   version = "0.37.0";
-  __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "mistweaverco";

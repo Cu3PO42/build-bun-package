@@ -13,7 +13,6 @@
 buildBunPackage (finalAttrs: {
   pname = "filen-cli";
   version = "0.0.36";
-  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {

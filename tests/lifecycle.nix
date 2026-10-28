@@ -117,7 +117,6 @@ in
 
   lifecycle-node-shebangs = lifecycle-shebangs.overrideAttrs (_: {
     nodejs = pkgs.nodejs;
-    __structuredAttrs = true;
     makeCacheWritable = false; # Scripts still require a writable copy.
   });
 
@@ -142,7 +141,6 @@ in
       mv package.json.new package.json
     '';
     bunDepsNativeBuildInputs = [ pkgs.jq ];
-    __structuredAttrs = true;
     makeCacheWritable = true; # Bun's patchedDependencies need cache writes.
     preBunInstall = ''test "$BUN_INSTALL_CACHE_DIR" != "$bunDeps"'';
     doInstallCheck = true;
