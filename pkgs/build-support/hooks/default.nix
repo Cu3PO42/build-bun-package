@@ -63,6 +63,14 @@ in
     ];
     meta.license = lib.licenses.mit;
   } ./bun-build-hook.sh;
+  bunCheckHook = makeSetupHook {
+    name = "bun-check-hook";
+    propagatedBuildInputs = [
+      bun
+      bunNodeFallbackHook
+    ];
+    meta.license = lib.licenses.mit;
+  } ./bun-check-hook.sh;
   bunInstallHook = makeSetupHook {
     name = "bun-install-hook";
     meta.license = lib.licenses.mit;

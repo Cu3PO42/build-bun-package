@@ -14,6 +14,7 @@ in
 // import ./runtime.nix { inherit pkgs example; }
 // import ./lifecycle.nix { inherit pkgs example; }
 // import ./hooks.nix { inherit pkgs example; }
+// import ./checks.nix { inherit pkgs example; }
 // import ./evaluation.nix { inherit pkgs example; }
 // import ./lint.nix { inherit pkgs; }
 // import ./cache.nix {

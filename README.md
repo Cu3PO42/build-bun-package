@@ -62,6 +62,12 @@ Declared manual pages are installed too. Set `dontBunBuild = true`
 for a package without a build script. Set `dontBunPrune = true` to retain dev
 dependencies in the default installation.
 
+Set `doCheck = true` to run `bun test` before installation and pruning. For a
+package.json test script or another test runner, set `bunCheckScript = "test";`
+to run `bun run test` instead. `bunCheckFlags` supplies test arguments. Checks
+use the selected `bunWorkspace`, and respect `preCheck`, `postCheck`, and a
+custom `checkPhase`. Set `dontBunCheck = true` to disable the default check hook.
+
 For a bundled executable or static website, override `installPhase` to install
 only the build output:
 
@@ -90,7 +96,7 @@ Apply `nix-bun.overlays.default` to use your own Nixpkgs package set and access
 repository's Bun is newer. Nixpkgs follows `nixos-unstable`, with its revision
 recorded in `flake.lock`.
 
-Without the overlay, top-level `fetchBunDeps`, `bunConfigHook`, `bunBuildHook`,
+Without the overlay, top-level `fetchBunDeps`, `bunConfigHook`, `bunBuildHook`, `bunCheckHook`,
 `bunInstallHook`, `bunNodeFallbackHook`, `bunNodeGypHook`, `bunNodeShim`,
 `bunNodeGyp`, `bunNodeHeaders`, `bunHooks`, and `bun` are indexed by `${system}`.
 The complete scope is available as `nix-bun.legacyPackages.${system}` and
@@ -324,9 +330,12 @@ These are Nix derivation attributes. With the overlay, the builder is
 | `bunInstallFlags` | `[]` | Extra install arguments |
 | `bunRunScripts` | `false` | Copy the cache, patch its shebangs, and permit Bun's trusted install scripts; otherwise append `--ignore-scripts` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
+| `bunCheckScript` | `null` | Package script to check with `bun run`; otherwise use `bun test`; requires `doCheck = true` |
 | `bunFlags` | `[]` | Common Bun options before script names, applied to fetch, install, run, pack and prune; e.g. `[ "--silent" ]` |
 | `bunBuildFlags` | `[]` | Arguments passed to the build script |
+| `bunCheckFlags` | `[]` | Arguments passed to `bun test` or the selected check script |
 | `dontBunBuild` | `false` | Skip the default build script |
+| `dontBunCheck` | `false` | Disable the default check hook |
 | `dontBunPrune` | `false` | Retain dev dependencies in the default installation |
 | `bunPruneFlags` | `[]` | Extra arguments to `bun prune` |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
@@ -334,11 +343,11 @@ These are Nix derivation attributes. With the overlay, the builder is
 | `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage; implied by `bunRunScripts` |
 | `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
 | `dontBunInstall` | `false` | Disable the default install phase |
-| `bunConfigHook`, `bunBuildHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
+| `bunConfigHook`, `bunBuildHook`, `bunCheckHook`, `bunInstallHook` | default hooks | Replace individual setup hooks |
 
 ### Flags and custom phases
 
-Only put options accepted by fetch, install, run, pack, and prune in `bunFlags`;
+Only put options accepted by fetch, install, run, test, pack, and prune in `bunFlags`;
 use command-specific attributes for other options. `bunBuildFlags` are arguments
 to the build script, so Bun options belong in `bunFlags`.
 
@@ -349,7 +358,7 @@ space-separated strings. The fetcher shell-escapes its Nix flag lists and
 preserves spaces in either mode.
 
 The config hook runs in `postPatchHooks`, even with a custom `configurePhase`.
-The build and install hooks supply phases only when no corresponding phase is
+The build, check, and install hooks supply phases only when no corresponding phase is
 provided and their opt-out is unset. Each hook restores the working directory;
 custom phases must enter `bunRoot` themselves and restore the directory before
 the next phase. `preBunInstall` and `postBunInstall` run inside `bunRoot`.

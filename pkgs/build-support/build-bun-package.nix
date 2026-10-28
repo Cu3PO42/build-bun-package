@@ -22,6 +22,7 @@ lib.extendMkDerivation {
       bunDepsImpureEnvVars ? [ ],
       bunConfigHook ? null,
       bunBuildHook ? null,
+      bunCheckHook ? null,
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
       nodejs ? null,
@@ -33,6 +34,8 @@ lib.extendMkDerivation {
       bunFetchFlags ? [ ],
       bunInstallFlags ? [ ],
       bunBuildFlags ? [ ],
+      bunCheckFlags ? [ ],
+      bunCheckScript ? null,
       bunPackFlags ? [ ],
       bunPruneFlags ? [ ],
       ...
@@ -98,6 +101,8 @@ lib.extendMkDerivation {
         bunFetchFlags
         bunInstallFlags
         bunBuildFlags
+        bunCheckFlags
+        bunCheckScript
         bunPackFlags
         bunPruneFlags
         ;
@@ -110,6 +115,7 @@ lib.extendMkDerivation {
           selectedBun
           (hook "bunConfigHook")
           (hook "bunBuildHook")
+          (hook "bunCheckHook")
           (hook "bunInstallHook")
         ]
         ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs

@@ -90,6 +90,7 @@
     // nixpkgs.lib.genAttrs [
       "bunConfigHook"
       "bunBuildHook"
+      "bunCheckHook"
       "bunInstallHook"
       "bunNodeFallbackHook"
       "bunNodeShim"

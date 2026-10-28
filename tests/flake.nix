@@ -26,6 +26,7 @@ assert self.buildBunPackage.${pkgs.stdenv.hostPlatform.system} ? override;
 assert self.fetchBunDeps.${pkgs.stdenv.hostPlatform.system} ? override;
 assert self.bunConfigHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunConfigHook;
 assert self.bunBuildHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunBuildHook;
+assert self.bunCheckHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunCheckHook;
 assert self.bunInstallHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunInstallHook;
 assert self.bunNodeGypHook.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeGypHook;
 assert self.bunNodeGyp.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeGyp;
