@@ -1,0 +1,18 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "git-source-example",
+      "dependencies": {
+        "first": "git+https://example.invalid/repository.git#main",
+        "second": "git+https://example.invalid/repository.git#main"
+      }
+    }
+  },
+  "trustedDependencies": ["first", "second"],
+  "packages": {
+    "first": ["git-answer@git+https://example.invalid/repository.git#cf105c473b705c7665ba654b28178a55de18cc06", { "hasInstallScript": true, "bin": { "git-answer": "bin/answer" } }, "cf105c473b705c7665ba654b28178a55de18cc06"],
+    "second": ["git-answer@git+https://example.invalid/repository.git#cf105c473b705c7665ba654b28178a55de18cc06", { "hasInstallScript": true, "bin": { "git-answer": "bin/answer" } }, "cf105c473b705c7665ba654b28178a55de18cc06"]
+  }
+}

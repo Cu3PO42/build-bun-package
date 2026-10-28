@@ -1,0 +1,7 @@
+{
+  "name": "git-answer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": { "git-answer": "bin/answer" },
+  "scripts": { "postinstall": "./bin/answer >> installed" }
+}

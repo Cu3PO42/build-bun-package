@@ -117,17 +117,25 @@ reuse individual tarballs. Lockfile parsing uses pure Nix and needs no import
 from derivation. The text lockfile must be available during evaluation; reading
 it from an unbuilt derivation would require IFD.
 
-Supported sources are integrity-pinned npm registry packages and HTTP(S)
-tarballs, local `.tgz`/`.tar.gz`/`.tar` archives, workspaces, local `file:`/`link:`
-directories, and `root:` self-references. Archive suffixes are case-insensitive.
-Local archives are read from the package source during installation; older lock
-rows without integrity are supported because Nix already supplies the source.
-Registry aliases, prereleases, catalogs, and dependency patches are supported.
+Supported sources include npm registries, HTTP(S) tarballs, Git and GitHub,
+local `.tgz`/`.tar.gz`/`.tar` archives, workspaces, `file:`/`link:` directories,
+and `root:` self-references. Archive suffixes are case-insensitive. Aliases,
+prereleases, catalogs, and dependency patches work with these sources.
+
+Remote archives use lockfile integrity hashes; missing hashes can be supplied
+through `fetcherOpts.<key>.hash`. Git uses the full locked commit, or an explicit
+`fetcherOpts.<key>.rev`. Without a Git `hash`, Nix's `builtins.fetchGit` fetches at
+evaluation time, as in `importNpmLock`. Supplying a Git `hash` selects Nixpkgs'
+`fetchgit` so downloading happens during the build. Git transport options are
+forwarded to the selected fetcher. GitHub rows use integrity-pinned codeload
+archives, including legacy rows with a supplied hash.
+
 The importer always uses a private writable cache; `makeCacheWritable` is
-unnecessary. Git dependencies and binary `bun.lockb`,
-and remote packages without supported integrity hashes are rejected. Use
-`fetchBunDeps` for those projects. Convert binary locks with
-`bun install --save-text-lockfile --frozen-lockfile --lockfile-only` first if desired.
+unnecessary. Local archives are read from the package source during installation,
+including legacy rows without integrity. Binary `bun.lockb` requires conversion
+with `bun install --save-text-lockfile --frozen-lockfile --lockfile-only`, or use
+`fetchBunDeps`. See the [source-type analysis](./docs/import-bun-lock.md) for Bun's
+normalized lockfile types, fetcher choices, and direct-install tradeoffs.
 
 The importer accepts these arguments:
 
@@ -139,7 +147,7 @@ The importer accepts these arguments:
 | `name` | `"imported-bun-deps"` | Source-bundle derivation name |
 | `registry` | `"https://registry.npmjs.org"` | Registry for packages whose lockfile URL is empty |
 | `scopedRegistries` | `{}` | Registry URLs keyed by scope, e.g. `"@myorg"` |
-| `fetcherOpts` | `{}` | Per-package `fetchurl` overrides, keyed by the exact key in `bun.lock`'s `packages` object |
+| `fetcherOpts` | `{}` | Per-package options for `fetchurl`, `fetchgit`, or `builtins.fetchGit`, keyed by the exact key in `bun.lock`'s `packages` object |
 
 Explicit tarball URLs in the lockfile take precedence over registry defaults.
 For an empty URL, set `registry`/`scopedRegistries` to match upstream's registry
@@ -158,7 +166,7 @@ importBunLock {
 }
 ```
 
-For private fetches, use `fetchurl`'s `netrcPhase`/`netrcImpureEnvVars` or other
+For private HTTP fetches, use `fetchurl`'s `netrcPhase`/`netrcImpureEnvVars` or other
 builder-side credential configuration. Keep credential values out of Nix
 expressions and the store. `bunDepsImpureEnvVars` configures `fetchBunDeps`
 and does not affect this importer. Updating the imported lockfile replaces the
@@ -496,12 +504,14 @@ selects the build host's dependencies. This lets workspaces and platforms share
 a cache, but can be expensive: workspace selection and install filters do not
 reduce downloads. `importBunLock` also fetches the complete locked archive set,
 but extracts only packages selected by installation on the build host. Its
-source bundle contains archive links and original-lockfile metadata, without
-Bun, a source-tree copy, or an extraction step. The config hook changes fetched
+source bundle contains archive/checkout links and original-lockfile metadata,
+without Bun, a source-tree copy, or an extraction step. The config hook changes fetched
 resolutions into local tarballs in the build tree, and Bun installs them directly
-into a private cache and `node_modules`. It needs neither a loopback server nor
-Darwin networking permissions. The existing hooks still own lifecycle
-preparation, patching, linking, and pruning.
+into a private cache and `node_modules`. Git checkouts retain their Git
+resolutions and are copied into native Git cache entries; this avoids rewriting
+Git identities or manufacturing new archive hashes. The importer needs neither a
+loopback server nor Darwin networking permissions. The existing hooks still own
+lifecycle preparation, patching, linking, and pruning.
 
 The rewritten build-tree lockfile and patch keys contain store paths. They are
 kept through build and prune so later Bun commands see consistent resolutions;

@@ -1,0 +1,11 @@
+{
+  "name": "git-source-example",
+  "version": "1.0.0",
+  "bin": { "git-source-example": "cli.js" },
+  "dependencies": {
+    "first": "git+https://example.invalid/repository.git#main",
+    "second": "git+https://example.invalid/repository.git#main"
+  },
+  "trustedDependencies": ["first", "second"],
+  "scripts": { "build": "git-answer > build-ran" }
+}

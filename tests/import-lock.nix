@@ -32,6 +32,19 @@ let
     '';
   };
   basic = imported example;
+  sourceLock = import ../pkgs/build-support/import-bun-lock/jsonc.nix (
+    builtins.readFile ./fixtures/import-lock/bun.lock
+  );
+  legacyTarballLock = builtins.toFile "legacy-tarball.lock" (
+    builtins.toJSON (
+      sourceLock
+      // {
+        packages = sourceLock.packages // {
+          is-number = pkgs.lib.take 2 sourceLock.packages.is-number;
+        };
+      }
+    )
+  );
   lifecycle = import ./lifecycle.nix { inherit pkgs example; };
   patchedScripts = (imported lifecycle.patched-shebang).overrideAttrs (_: {
     installCheckPhase = ''
@@ -57,6 +70,16 @@ in
 {
   import-lock-basic = basic;
   import-lock-sources = fixture;
+  import-lock-legacy-tarball = fixture.overrideAttrs (_: {
+    postPatch = "cp ${legacyTarballLock} bun.lock";
+    bunDeps = pkgs.importBunLock {
+      src = ./fixtures/import-lock;
+      lockFile = legacyTarballLock;
+      registry = "https://registry.yarnpkg.com";
+      scopedRegistries."@types" = "https://registry.npmjs.org";
+      fetcherOpts.is-number.hash = builtins.elemAt sourceLock.packages.is-number 2;
+    };
+  });
   import-lock-sources-isolated = fixture.overrideAttrs (_: {
     bunInstallFlags = [ "--linker=isolated" ];
   });
@@ -130,6 +153,10 @@ in
     src = ./fixtures/basic;
     bunDeps = basic.bunDeps;
     nativeBuildInputs = [ pkgs.importBunLock.bunConfigHook ];
+    postPatch = ''
+      { printf '// Bun accepts comments in package.json\n'; cat package.json; } > package.json.new
+      mv package.json.new package.json
+    '';
     dontBuild = true;
     installPhase = ''
       bun -e 'if (!require("is-odd")(3)) process.exit(1)'
@@ -141,11 +168,31 @@ in
     assert succeeds { src = ./fixtures/basic; };
     assert succeeds { src = ./fixtures/local-tarballs; };
     assert !(succeeds { src = ./fixtures/binary-lock; });
-    assert !(succeeds { src = ./fixtures/duplicate-git; });
+    assert succeeds { src = ./fixtures/duplicate-git; };
     assert invalid (lock // { lockfileVersion = 99; });
     assert invalid (lock // { packages = [ ]; });
     assert invalid (lock // { packages.bad = [ ]; });
     assert invalid (lock // { packages.bad = [ "missing-resolution" ]; });
+    assert invalid (
+      lock
+      // {
+        packages.bad = [
+          "bad@git+https://example.com/repo.git#main"
+          { }
+          "main"
+        ];
+      }
+    );
+    assert invalid (
+      lock
+      // {
+        packages.bad = [
+          "bad@github:owner/repository#1234567"
+          { }
+          "owner-repository-1234567"
+        ];
+      }
+    );
     assert invalid (
       lock
       // {
@@ -198,6 +245,7 @@ in
     );
     pkgs.runCommand "bun-import-lock-evaluation" { } "touch $out";
 }
+// import ./import-lock-git.nix { inherit pkgs sources; }
 // pkgs.lib.mapAttrs' (name: drv: pkgs.lib.nameValuePair "import-lock-${name}" drv) (
   import ./elf.nix {
     inherit pkgs;
