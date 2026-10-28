@@ -1,0 +1,16 @@
+{
+  "name": "patched-shebang",
+  "version": "1.0.0",
+  "dependencies": {
+    "esbuild": "0.25.0"
+  },
+  "trustedDependencies": [
+    "esbuild"
+  ],
+  "patchedDependencies": {
+    "esbuild@0.25.0": "patches/esbuild.patch"
+  },
+  "scripts": {
+    "postinstall": "./node_modules/esbuild/bin/esbuild --version && echo ran >> root-lifecycle-runs"
+  }
+}

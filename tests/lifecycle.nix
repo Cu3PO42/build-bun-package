@@ -1,5 +1,23 @@
 { pkgs, example }:
 let
+  patched-shebang = pkgs.buildBunPackage {
+    pname = "bun-patched-shebang";
+    version = "1";
+    src = ./fixtures/patched-shebang;
+    bunDepsHash = "sha256-FUFas7GOMdUkq9rF3JWS4NIdvDMTeLZNG1aBz/J1HhU=";
+    bunRunScripts = true;
+    dontBunBuild = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      packageOut="$out/lib/node_modules/patched-shebang"
+      test "$(wc -l < "$packageOut/root-lifecycle-runs")" -eq 1
+      test "$("$packageOut/node_modules/esbuild/bin/esbuild" --version)" = 0.25.0
+      test "$(head -n1 "$bunDeps/esbuild@0.25.0@@@1/bin/esbuild")" = '#!/usr/bin/env node'
+      # The final copy install must not leave links into the private cache.
+      if find "$out" -type l -lname "$TMPDIR/*" -print | grep -q .; then exit 1; fi
+    '';
+  };
+
   lifecycle-writable = pkgs.buildBunPackage {
     pname = "bun-lifecycle-writable";
     version = "1";
@@ -43,6 +61,21 @@ let
   });
 in
 {
+  inherit patched-shebang;
+
+  patched-shebang-isolated = patched-shebang.overrideAttrs (_: {
+    bunInstallFlags = [ "--linker=isolated" ];
+  });
+
+  patched-shebang-ignore-scripts = patched-shebang.overrideAttrs (_: {
+    bunInstallFlags = [ "--ignore-scripts" ];
+    installCheckPhase = ''
+      packageOut="$out/lib/node_modules/patched-shebang"
+      test ! -e "$packageOut/root-lifecycle-runs"
+      test "$("$packageOut/node_modules/esbuild/bin/esbuild" --version)" = 0.25.0
+    '';
+  });
+
   inherit lifecycle-writable;
 
   inherit lifecycle-shebangs;
@@ -95,7 +128,7 @@ in
     bunDepsHash = "sha256-yp69Jks7nsEvClpdP31p6UfQbxofhf/ASkSkckPjeyw=";
     bunRunScripts = true;
     doInstallCheck = true;
-    installCheckPhase = ''grep -q 'trusted dependency script' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"'';
+    installCheckPhase = ''test "$(grep -c 'trusted dependency script' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js")" -eq 1'';
   };
 
   lifecycle-disabled = pkgs.buildBunPackage {

@@ -54,9 +54,35 @@ bunConfigHook() {
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
     if [[ -n ${bunRunScripts-} ]]; then
-        # Fix dependency executables before Bun runs lifecycle scripts. Keep
-        # interpreter paths out of the portable fixed-output cache itself.
-        patchShebangs "$BUN_INSTALL_CACHE_DIR"
+        # Let Bun apply patchedDependencies to pristine cache entries first.
+        # Symlinked files identify the cache packages selected for this platform
+        # without decoding Bun's lockfile or its internal cache directory names.
+        # Bun's isolated linker does not symlink package files for this backend.
+        # Only staging uses hoisting; the final install honors the chosen linker.
+        if ! bun install "${installFlags[@]}" --offline --frozen-lockfile --linker hoisted --backend symlink --ignore-scripts; then
+            echo 'bunConfigHook: offline dependency preparation failed' >&2
+            exit 1
+        fi
+        local cacheRoot manifest target directory
+        local -a preparedCachePackages=()
+        local -A prepared=()
+        cacheRoot=$(realpath "$BUN_INSTALL_CACHE_DIR")
+        while IFS= read -r -d "" manifest; do
+            target=$(realpath "$manifest")
+            if [[ $target == "$cacheRoot/"* ]]; then
+                directory=$(dirname "$target")
+                if [[ -z ${prepared[$directory]-} ]]; then
+                    prepared[$directory]=1
+                    preparedCachePackages+=("$directory")
+                fi
+            fi
+        done < <(find . -path '*/node_modules/*' -type l -name package.json -print0)
+        if (( ${#preparedCachePackages[@]} )); then
+            patchShebangs "${preparedCachePackages[@]}"
+        fi
+        # A plain second install skips dependency scripts. Force a reinstall
+        # from the prepared cache, retaining Bun's normal trust rules.
+        installFlags+=(--force)
     else
         installFlags+=(--ignore-scripts)
     fi
