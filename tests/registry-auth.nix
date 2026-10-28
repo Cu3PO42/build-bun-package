@@ -18,6 +18,29 @@
       sleep 0.1
     done
     port=$(cat "$REGISTRY_STATE/port")
+
+    # Each rejection uses a fresh project and cache so an earlier fetch cannot
+    # satisfy it without contacting the registry. Keep the server's token valid.
+    for credentials in missing invalid; do
+      project="$TMPDIR/$credentials-auth"
+      mkdir -p "$project"
+      cp package.json bun.lock "$project/"
+      cat > "$project/bunfig.toml" <<EOF
+    [install.scopes]
+    private = { url = "http://127.0.0.1:$port/" }
+    EOF
+      if [[ $credentials == invalid ]]; then
+        sed -i 's/ }/, token = "invalid-public-test-token" }/' "$project/bunfig.toml"
+      fi
+      if (cd "$project" && BUN_INSTALL_CACHE_DIR="$project/cache" bun pm fetch --frozen-lockfile) > "$project/fetch.log" 2>&1; then
+        echo "Registry accepted $credentials credentials" >&2
+        exit 1
+      fi
+      grep -q '401' "$project/fetch.log"
+      test -f "$REGISTRY_STATE/rejected-$credentials"
+      test ! -e "$REGISTRY_STATE/authenticated"
+    done
+
     cat > bunfig.toml <<EOF
     [install.scopes]
     private = { url = "http://127.0.0.1:$port/", token = "\$NIX_BUN_TEST_TOKEN" }

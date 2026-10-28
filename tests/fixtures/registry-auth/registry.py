@@ -37,7 +37,10 @@ if __name__ == "__main__":
             pass
 
         def do_GET(self):
-            if self.headers.get("Authorization") != "Bearer " + os.environ["NIX_BUN_TEST_TOKEN"]:
+            authorization = self.headers.get("Authorization")
+            if authorization != "Bearer " + os.environ["NIX_BUN_TEST_TOKEN"]:
+                rejection = "missing" if authorization is None else "invalid"
+                (state / f"rejected-{rejection}").touch()
                 self.send_error(401)
                 return
             (state / "authenticated").touch()
