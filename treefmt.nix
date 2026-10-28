@@ -38,7 +38,6 @@
       options = [
         "fmt"
         "--no-script"
-        "--use-tabs"
         "--single-quote"
         "--no-semi"
       ];
