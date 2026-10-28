@@ -224,8 +224,10 @@ Select the runtime for installed application wrappers independently with
 does not change the build or lifecycle runtime. To use Node.js for both:
 
 ```nix
-nodejs = pkgs.nodejs-slim;
-bunRuntime = pkgs.nodejs-slim;
+{
+  nodejs = pkgs.nodejs-slim;
+  bunRuntime = pkgs.nodejs-slim;
+}
 ```
 
 Bun still fetches, installs, packs, and prunes dependencies, and the build hook
@@ -238,10 +240,12 @@ Bun can load prebuilt Node-API addons directly; Linux binaries may need the ELF
 fixups described below. To compile dependencies with node-gyp, enable the optional toolchain:
 
 ```nix
-nodeGyp = true;
-bunRunScripts = true;
-# Optional: run node-gyp with genuine Node.js and its matching headers.
-nodejs = pkgs.nodejs;
+{
+  nodeGyp = true;
+  bunRunScripts = true;
+  # Optional: run node-gyp with genuine Node.js and its matching headers.
+  nodejs = pkgs.nodejs;
+}
 ```
 
 Omit `nodejs` to run node-gyp with Bun and headers matching Bun's reported Node
@@ -254,13 +258,15 @@ If only a specific setup command is needed, leave automatic scripts disabled
 and run it after dependency shebangs have been patched:
 
 ```nix
-nodeGyp = true;
-postBunInstall = ''
-  (
-    cd node_modules/my-native-addon
-    node-gyp rebuild
-  )
-'';
+{
+  nodeGyp = true;
+  postBunInstall = ''
+    (
+      cd node_modules/my-native-addon
+      node-gyp rebuild
+    )
+  '';
+}
 ```
 
 Supply any required root or workspace setup explicitly and in dependency order.
@@ -272,8 +278,13 @@ ELF executables and libraries before build/check phases. Supply their libraries
 through `buildInputs` and configure the usual autoPatchelf settings as needed:
 
 ```nix
-nativeBuildInputs = [ pkgs.autoPatchelfHook ];
-buildInputs = [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+{
+  nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+  buildInputs = [
+    pkgs.stdenv.cc.cc.lib
+    pkgs.zlib
+  ];
+}
 ```
 
 With `bunRunScripts = true`, selected cache packages and project binaries are
@@ -309,7 +320,9 @@ myorg = { url = "https://registry.example.com/", token = "$NPM_TOKEN" }
 Opt only the required variable names into dependency fetching:
 
 ```nix
-bunDepsImpureEnvVars = [ "NPM_TOKEN" ];
+{
+  bunDepsImpureEnvVars = [ "NPM_TOKEN" ];
+}
 ```
 
 For direct `fetchBunDeps` calls, use `impureEnvVars = [ "NPM_TOKEN" ];`.

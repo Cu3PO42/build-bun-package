@@ -1,0 +1,29 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.{nix,js,ts,json,md,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.sh]
+indent_style = space
+indent_size = 4
+
+[*.{diff,patch}]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+# Upstream sources and fixtures must retain their exact bytes for hash tests.
+[tests/fixtures/**]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+charset = unset
+indent_style = unset
+indent_size = unset
