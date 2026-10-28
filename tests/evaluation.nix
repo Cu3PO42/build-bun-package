@@ -63,6 +63,12 @@
           marker = true;
         };
       });
+      replacementHooks = example.overrideAttrs (_: {
+        bunConfigHook = pkgs.emptyDirectory;
+        bunBuildHook = pkgs.emptyDirectory;
+        bunCheckHook = pkgs.emptyDirectory;
+        bunInstallHook = pkgs.emptyDirectory;
+      });
       noUpdater = pkgs.buildBunPackage {
         pname = "no-updater";
         version = "1";
@@ -100,7 +106,7 @@
     assert alternateBuildRuntime.runtime == pkgs.bun;
     assert alternateBuildRuntime.buildRuntime == alternateNodejs;
     assert alternateBuildRuntime.bunDeps.drvPath == example.bunDeps.drvPath;
-    assert !example.bunRunScripts;
+    assert !(example.bunRunScripts or false);
     assert scripted.bunRunScripts;
     assert scripted.bunDeps.drvPath == example.bunDeps.drvPath;
     assert
@@ -116,6 +122,12 @@
     assert builtins.elem (toString (pkgs.bunHooks.override { bun = alternateBun; }).bunInstallHook) (
       map toString alternate.nativeBuildInputs
     );
+    assert
+      builtins.length (
+        builtins.filter (
+          input: toString input == toString pkgs.emptyDirectory
+        ) replacementHooks.nativeBuildInputs
+      ) == 4;
     assert overriddenHash.outputHash == pkgs.lib.fakeHash;
     assert changed.bunDeps.bunFlags == [ "--no-env-file" ];
     assert changed.bunDeps.outputHash == pkgs.lib.fakeHash;
@@ -123,7 +135,7 @@
     assert prepared.bunDeps.src == ./fixtures;
     assert prepared.bunDeps.bunRoot == "basic";
     assert prepared.bunDeps.sourceRoot == "fixtures";
-    assert prepared.bunDeps.preUnpack == "echo prepared";
+    assert !(prepared.bunDeps ? preUnpack);
     assert prepared.bunDeps.patchFlags == [ "-p1" ];
     assert prepared.bunDeps.bunFetchFlags == [ "--verbose" ];
     assert builtins.elem "NIX_BUN_TEST_TOKEN" prepared.bunDeps.impureEnvVars;

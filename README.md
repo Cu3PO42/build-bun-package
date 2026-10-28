@@ -511,12 +511,13 @@ custom phases must enter `bunRoot` themselves and restore the directory before
 the next phase. `preBunInstall`, `preBunInstallScripts`, and `postBunInstall`
 run inside `bunRoot`.
 
-Source selection, unpack, and patch settings are forwarded to the dependency
+Source selection (`src`, `srcs`, `sourceRoot`) and common patch settings
+(`prePatch`, `patches`, `postPatch`, `patchFlags`) are forwarded to the dependency
 fetcher, but package `nativeBuildInputs`, `buildInputs`, and `env` are not.
 If a shared `postPatch` needs jq, add it to both `nativeBuildInputs` and
 `bunDepsNativeBuildInputs`; Git dependencies normally need Git only in
-`bunDepsNativeBuildInputs`. For custom fetcher environment or phases, supply
-`bunDeps = fetchBunDeps { ... };` explicitly. Direct fetcher calls use `hash`
+`bunDepsNativeBuildInputs`. For custom unpacking, fetcher environment, or phases,
+supply `bunDeps = fetchBunDeps { ... };` explicitly. Direct fetcher calls use `hash`
 instead of `bunDepsHash`, and `nativeBuildInputs` instead of
 `bunDepsNativeBuildInputs`.
 
