@@ -68,6 +68,16 @@ Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
 `bunDepsHash`, then build again. Repeat when dependencies change. To fetch only
 the dependencies, run `nix build .#my-app.bunDeps`.
 
+`fetchBunDeps` delegates lockfile parsing to Bun, so the approach can
+fundamentally work with any lockfile format supported by the selected Bun
+version: text `bun.lock`, binary `bun.lockb`, and other package managers'
+lockfiles through [Bun's upstream migration support](https://bun.com/docs/pm/lockfile#automatic-lockfile-migration),
+including supported npm, Yarn, and pnpm formats. This also applies when
+`buildBunPackage` calls `fetchBunDeps` implicitly through `bunDepsHash`.
+Currently, this repository's fetcher and install-hook metadata checks require
+`bun.lock` or `bun.lockb`, so other package managers' lockfiles must first be
+migrated with Bun and the resulting Bun lockfile included in the package source.
+
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
 and production dependencies. Executables declared in `package.json` receive
@@ -111,7 +121,9 @@ Cross compilation is not supported.
 ### Import a lockfile without `bunDepsHash`
 
 `importBunLock` is an alternative to `fetchBunDeps` that fetches each tarball
-using the integrity hash already recorded in a text `bun.lock`:
+using the integrity hash already recorded in a text `bun.lock`. It requires
+that text-based Bun lockfile and cannot directly import binary `bun.lockb` or
+another package manager's lockfile. Convert those with Bun first.
 
 ```nix
 nix-bun.legacyPackages.${system}.buildBunPackage {
