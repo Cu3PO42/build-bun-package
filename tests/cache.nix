@@ -27,8 +27,63 @@ let
         '';
       }
     );
+
+  fetchFlagsTest =
+    structured:
+    (pkgs.fetchBunDeps {
+      name = "bun-fetcher-${if structured then "structured" else "unstructured"}-flags";
+      src = ./fixtures/basic;
+      __structuredAttrs = structured;
+      bunFlags = [
+        "--no-env-file"
+        "--silent"
+      ];
+      bunFetchFlags = [ "--invalid-original-fetch-flag" ];
+      preInstall = ''
+        appendToVar bunFlags --verbose
+        bunFlagsArray=(--hook-common 'common argument with spaces' 'literal *')
+        ${
+          if structured then
+            "bunFetchFlags=(--config 'config with spaces.toml')"
+          else
+            "bunFetchFlags='--config config.toml' "
+        }
+        bunFetchFlagsArray=(--hook-fetch 'fetch argument with spaces' 'literal *')
+
+        # Inspect the actual command without downloading dependencies.
+        bun() {
+          local -a expected=(
+            pm fetch --no-env-file --silent --verbose
+            --hook-common 'common argument with spaces' 'literal *'
+            --frozen-lockfile --os '*' --cpu '*' --libc '*'
+            --config ${
+              pkgs.lib.escapeShellArg (if structured then "config with spaces.toml" else "config.toml")
+            }
+            --hook-fetch 'fetch argument with spaces' 'literal *'
+          )
+          printf 'fetch argument: <%s>\n' "$@"
+          test "$#" -eq "''${#expected[@]}"
+          local expectedArg
+          for expectedArg in "''${expected[@]}"; do
+            test "$1" = "$expectedArg"
+            shift
+          done
+          test ! -e "$out/fetch-ran"
+          touch "$out/fetch-ran"
+        }
+      '';
+      postInstall = ''test -f "$out/fetch-ran"'';
+    }).overrideAttrs
+      (_: {
+        outputHash = null;
+        outputHashAlgo = null;
+        outputHashMode = null;
+      });
 in
 {
+  fetcher-structured-flags = fetchFlagsTest true;
+  fetcher-unstructured-flags = fetchFlagsTest false;
+
   duplicate-git-cache = fetchForTest {
     name = "bun-duplicate-git-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/duplicate-git;
