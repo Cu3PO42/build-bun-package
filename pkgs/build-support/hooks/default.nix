@@ -29,15 +29,16 @@ let
       mkdir -p "$out/bin"
       ln -s ${lib.getExe runtime} "$out/bin/node"
     '';
-  bunNodeShim = nodeShim buildRuntime;
+  buildRuntimeNodeShim = nodeShim buildRuntime;
   runtimeNodeShim = nodeShim runtime;
+in
+rec {
+  inherit buildRuntimeNodeShim;
+
   bunNodeFallbackHook = makeSetupHook {
     name = "bun-node-fallback-hook";
-    propagatedBuildInputs = lib.unique [
-      bun
-      buildRuntime
-    ];
-    substitutions = { inherit bunNodeShim; };
+    propagatedBuildInputs = [ bun ];
+    substitutions = { inherit buildRuntimeNodeShim; };
   } ./bun-node-fallback-hook.sh;
   bunConfigHook = makeSetupHook {
     name = "bun-config-hook";
@@ -48,9 +49,6 @@ let
     ];
     meta.license = lib.licenses.mit;
   } ./bun-config-hook.sh;
-in
-{
-  inherit bunNodeShim bunNodeFallbackHook;
   bunNodeGypHook = makeSetupHook {
     name = "bun-node-gyp-hook";
     propagatedBuildInputs = [
@@ -66,7 +64,6 @@ in
     };
     meta.license = lib.licenses.mit;
   } ./bun-node-gyp-hook.sh;
-  inherit bunConfigHook;
   bunImportConfigHook = makeSetupHook {
     name = "bun-import-config-hook";
     propagatedBuildInputs = [ bunConfigHook ];

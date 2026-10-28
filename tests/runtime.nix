@@ -98,7 +98,7 @@ in
         JS
         chmod +x "$out/bin/node-script"
         patchShebangs "$out/bin"
-        grep -F '${pkgs.bunHooks.bunNodeShim}/bin/node' "$out/bin/node-script"
+        grep -F '${pkgs.bunHooks.buildRuntimeNodeShim}/bin/node' "$out/bin/node-script"
         test "$("$out/bin/node-script")" = '${pkgs.bun.version}'
       '';
 
