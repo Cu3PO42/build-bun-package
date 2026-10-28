@@ -13,6 +13,7 @@ buildBunPackage {
   pname = "bun-node-gyp";
   version = (lib.importJSON ./source/package.json).dependencies.node-gyp;
   inherit bun;
+  __structuredAttrs = true;
   src = ./source;
   bunDepsHash = "sha256-CB6mi3g6vG2m9Oxj41QMWxY9WMfywpKu9t9yZrJ/+S0=";
   nativeBuildInputs = [ makeWrapper ];
