@@ -1,10 +1,22 @@
-# `buildBunPackage` - `buildNpmPackage`, but for Bun
+<h1 style="text-align: center;">Bunniex</h1>
+<p style="text-align: center">
+<code>buildNpmPackage</code>, but for Bun!
+</p>
+
+![A bunny holding a package with a Nix logo on it.](./logo.png)
 
 `buildBunPackage` allows easily packaging Bun applications and scripts for Nix while sticking as close to the familiar `buildNpmPackage` as reasonably possible.
 This implementation is enabled by new commands in [Bun 1.4.4](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
 
-This is an early implementation and comes with no guarantees nor any promise of long term maintenance.
-I am still actively improving this project and its public interface may yet change.
+## Status
+
+`buildBunPackage` is feature-complete and has been used to package real world applications.
+You can probably use it for your package and encounter few issues.
+`importBunLock` is currently experimental; it also works in limited test settings, but I have much lower confidence in it.
+
+The project as a whole is in early stages and the public interface is not yet finalized, so expect breaking changes for now when updating.
+
+This project is designed such that it should be able to be upstreamed to nixpkgs, but I currently make no promises of long term maintenance.
 
 ## Limitations
 
