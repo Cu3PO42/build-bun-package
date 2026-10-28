@@ -37,12 +37,15 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
         with:
           use-flakehub: false
-      - name: Check formatting, ShellCheck, and workflows
-        run: >-
-          nix build --no-link --print-build-logs
-          .#checks.x86_64-linux.formatting
-          .#checks.x86_64-linux.shellcheck
-          .#checks.x86_64-linux.actionlint
+      - name: Check formatting, Nix syntax, ShellCheck, and workflows
+        run: |
+          nix build --no-link --print-build-logs \
+            .#checks.x86_64-linux.formatting \
+            .#checks.x86_64-linux.shellcheck \
+            .#checks.x86_64-linux.actionlint \
+            .#checks.x86_64-linux.parse-nix-stable \
+            .#checks.x86_64-linux.parse-nix-latest \
+            .#checks.x86_64-linux.parse-lix
 
   tests:
     name: Tests (${{ matrix.system }})
