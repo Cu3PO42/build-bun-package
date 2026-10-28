@@ -11,6 +11,7 @@ in
 // workspaces
 // sources
 // import ./native.nix { inherit pkgs example; }
+// import ./elf.nix { inherit pkgs; }
 // import ./runtime.nix { inherit pkgs example; }
 // import ./lifecycle.nix { inherit pkgs example; }
 // import ./hooks.nix { inherit pkgs example; }

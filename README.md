@@ -13,7 +13,7 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 ## Differences from `buildNpmPackage`
 
 - Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
-  There is no equivalent to `npmRebuildFlags` since a similar command does not exist for Bun and we work around shebang issues seperately.
+  There is no equivalent to `npmRebuildFlags`: Bun runs scripts through a forced install after dependency preparation.
 - By default, Bun is used to execute any scripts. If you want to keep Node.js, add it as a `nativeBuildInput`.
 - Executable project files, including local and workspace helpers, have their shebangs patched before installation.
 - The default install phase creates executable wrappers using Bun. Set `bunRuntime = pkgs.nodejs;` to use Node.js instead.
@@ -148,8 +148,8 @@ commands using the build's `PATH`. Explicit `bun` commands and direct source-fil
 execution use Bun; `--bun` or `run.bun = true` in `bunfig.toml` can also force Bun
 for scripts even when Node.js is available.
 
-Prebuilt Node-API addons need no additional hook. To compile dependencies with
-node-gyp, enable the optional toolchain:
+Bun can load prebuilt Node-API addons directly; Linux binaries may need the ELF
+fixups described below. To compile dependencies with node-gyp, enable the optional toolchain:
 
 ```nix
 nodeGyp = true;
@@ -180,6 +180,22 @@ postBunInstall = ''
 Supply any required root or workspace setup explicitly and in dependency order.
 Packages that download prebuilt binaries can often use Nix-provided binaries
 and upstream skip-download settings instead.
+
+On Linux, add `pkgs.autoPatchelfHook` to `nativeBuildInputs` to prepare prebuilt
+ELF executables and libraries before build/check phases. Supply their libraries
+through `buildInputs` and configure the usual autoPatchelf settings as needed:
+
+```nix
+nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+buildInputs = [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+```
+
+With `bunRunScripts = true`, selected cache packages and project binaries are
+also prepared before lifecycle scripts execute. Foreign platform packages in
+the cache are left untouched. Installed outputs are patched again before
+stdenv audits RPATHs, so bundled libraries resolve from the final output rather
+than a temporary build/cache directory. `dontAutoPatchelf = true` disables this
+behavior and the standard autoPatchelf output fixup.
 
 For a development shell with the native toolchain, use:
 
@@ -331,7 +347,7 @@ These are Nix derivation attributes. With the overlay, the builder is
 | `bunRunScripts` | `false` | Prepare a private cache before permitting Bun's trusted install scripts; otherwise append `--ignore-scripts` |
 | `bunBuildScript` | `"build"` | Script passed to `bun run` |
 | `bunCheckScript` | `null` | Package script to check with `bun run`; otherwise use `bun test`; requires `doCheck = true` |
-| `bunFlags` | `[]` | Common Bun options before script names, applied to fetch, install, run, pack and prune; e.g. `[ "--silent" ]` |
+| `bunFlags` | `[]` | Common Bun options before script names, applied to fetch, install, run, test, pack and prune; e.g. `[ "--silent" ]` |
 | `bunBuildFlags` | `[]` | Arguments passed to the build script |
 | `bunCheckFlags` | `[]` | Arguments passed to `bun test` or the selected check script |
 | `dontBunBuild` | `false` | Skip the default build script |
@@ -419,8 +435,9 @@ hoisted linker and symlink backend. The final install honors the selected
 linker. This lets Bun apply `patchedDependencies` to original package
 contents first. The symlinked manifests identify the selected cache packages,
 whose shebangs can then be patched without modifying the original inputs to
-dependency patches. A forced offline install copies those prepared packages
-and runs trusted scripts. The forced reinstall is necessary: an ordinary second
+dependency patches. When `autoPatchelfHook` is supplied, their ELF binaries are
+prepared at the same point. A forced offline install copies those prepared
+packages and runs trusted scripts. The forced reinstall is necessary: an ordinary second
 install skips dependency scripts. No staging-cache links are shipped.
 
 The separation of installation and script execution is inspired by
@@ -478,8 +495,9 @@ check verifies the versions match.
 
 ### Verification boundaries
 
-[`tests/`](./tests) covers caches, lifecycle scripts, native builds with Bun and
-Node.js, hooks, flag handling, workspaces with hoisted and isolated linkers,
+[`tests/`](./tests) covers caches, lifecycle scripts, shebang-changing dependency
+patches, early ELF fixups, native builds with Bun and Node.js, check hooks and
+test failures, flag handling, workspaces with hoisted and isolated linkers,
 pruning, and installed runtime behavior. Fresh-fetch checks use
 `testers.invalidateFetcherByDrvHash` so changed fetcher inputs cannot pass by
 reusing a cached fixed-output result.

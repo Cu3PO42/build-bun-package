@@ -2,6 +2,21 @@
 # stdenv enables errexit, so failed directory changes abort the build.
 # shellcheck disable=SC2164
 
+bunPatchElf() {
+    # Reuse the caller's autoPatchelfHook and its library/search-path settings.
+    if [[ -z ${dontAutoPatchelf-} ]] && declare -F autoPatchelf >/dev/null; then
+        autoPatchelf "$@"
+    fi
+}
+
+bunFixupElf() {
+    # Early patching can reference libraries inside the build tree or private
+    # cache. Resolve them against the installed outputs before RPATH auditing.
+    if declare -F autoPatchelfPostFixup >/dev/null; then
+        autoPatchelfPostFixup
+    fi
+}
+
 bunConfigHook() {
     echo "Executing bunConfigHook"
     pushd "${bunRoot:-.}" >/dev/null
@@ -80,6 +95,9 @@ bunConfigHook() {
         if (( ${#preparedCachePackages[@]} )); then
             patchShebangs "${preparedCachePackages[@]}"
         fi
+        # Only selected packages are prepared, leaving foreign OS/CPU/libc
+        # variants in the all-platform cache untouched.
+        bunPatchElf . "${preparedCachePackages[@]}"
         # A plain second install skips dependency scripts. Force a reinstall
         # from the prepared cache, retaining Bun's normal trust rules.
         installFlags+=(--force)
@@ -97,6 +115,10 @@ bunConfigHook() {
         patchShebangs node_modules
     fi
 
+    # Also prepare ordinary script-free installs and newly generated binaries
+    # before build/check phases or a caller's postBunInstall commands use them.
+    bunPatchElf .
+
     runHook postBunInstall
 
     popd >/dev/null
@@ -104,3 +126,4 @@ bunConfigHook() {
 }
 
 postPatchHooks+=(bunConfigHook)
+preFixupHooks+=(bunFixupElf)
