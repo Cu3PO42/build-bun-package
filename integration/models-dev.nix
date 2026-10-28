@@ -21,15 +21,18 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-C6qkWUUwv5NQ5iQGqC6a2N8axtOLzSDkbIhnHBs8ciA=";
   };
 
-  bunDepsHash = {
-    "aarch64-darwin" = "sha256-oX6CO3lt6dAFZU/uZBlL79yS6axkSoZuOITuKymR+gw=";
-    "aarch64-linux" = "sha256-2D4akhMAj8A/muvfCFtrkq9KUr3jPglDC2WZlhnsHzM=";
-    "x86_64-linux" = "sha256-KKeXJYo1IdQaZW5kkVFYCBGzAqXZ/RfQhR9DgEiKsfE=";
-  }.${stdenv.hostPlatform.system};
+  bunDepsHash =
+    {
+      "aarch64-darwin" = "sha256-oX6CO3lt6dAFZU/uZBlL79yS6axkSoZuOITuKymR+gw=";
+      "aarch64-linux" = "sha256-2D4akhMAj8A/muvfCFtrkq9KUr3jPglDC2WZlhnsHzM=";
+      "x86_64-linux" = "sha256-KKeXJYo1IdQaZW5kkVFYCBGzAqXZ/RfQhR9DgEiKsfE=";
+    }
+    .${stdenv.hostPlatform.system};
   bunFetchFlags = [
     "--os=${stdenv.hostPlatform.node.platform}"
     "--cpu=${stdenv.hostPlatform.node.arch}"
-  ] ++ lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
 
   nativeBuildInputs = [ jq ];
 

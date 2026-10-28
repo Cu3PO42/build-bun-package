@@ -6,11 +6,11 @@ bunPatchShebangs() {
     # Binary lockfiles have an executable shebang but fixed binary offsets;
     # rewriting that line corrupts them. Batch paths to stay below ARG_MAX.
     local -a scripts=()
-    while (( $# )); do
-        while mapfile -d '' -n 32 -t scripts && (( ${#scripts[@]} )); do
+    while (($#)); do
+        while mapfile -d '' -n 32 -t scripts && ((${#scripts[@]})); do
             patchShebangs "${scripts[@]}"
         done < <(find "${@:1:32}" -type f -perm -0100 ! -name bun.lockb -print0)
-        if (( $# <= 32 )); then break; fi
+        if (($# <= 32)); then break; fi
         shift 32
     done
 }
@@ -57,9 +57,13 @@ bunConfigHook() {
     fi
 
     local lockfile
-    if [[ -f bun.lock ]]; then lockfile=bun.lock
-    elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
-    else echo 'bunConfigHook: missing bun.lock or bun.lockb' >&2; exit 1
+    if [[ -f bun.lock ]]; then
+        lockfile=bun.lock
+    elif [[ -f bun.lockb ]]; then
+        lockfile=bun.lockb
+    else
+        echo 'bunConfigHook: missing bun.lock or bun.lockb' >&2
+        exit 1
     fi
 
     if ! cmp -s "$lockfile" "$bunDeps/.nix-bun/$lockfile"; then
@@ -109,7 +113,7 @@ bunConfigHook() {
                 fi
             fi
         done < <(find . -path '*/node_modules/*' -type l -name package.json -print0)
-        if (( ${#preparedCachePackages[@]} )); then
+        if ((${#preparedCachePackages[@]})); then
             bunPatchShebangs "${preparedCachePackages[@]}"
         fi
         # Only selected packages are prepared, leaving foreign OS/CPU/libc

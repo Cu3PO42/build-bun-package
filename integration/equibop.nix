@@ -33,10 +33,12 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-foKgtyN1jr4+PHwJHTVXrYzWNVYtR1Sq8rLG4VEnujs=";
   };
 
-  bunDepsHash = {
-    "aarch64-linux" = "sha256-MCS7tdSYlSwmFsqFflSBr1AQtUFn9bp5Wk++IUaCkQI=";
-    "x86_64-linux" = "sha256-bjTWv3MUgdgxkl6S2cnQ8Zz+aABmxI2eJ1RwCl7mRP0=";
-  }.${stdenv.hostPlatform.system};
+  bunDepsHash =
+    {
+      "aarch64-linux" = "sha256-MCS7tdSYlSwmFsqFflSBr1AQtUFn9bp5Wk++IUaCkQI=";
+      "x86_64-linux" = "sha256-bjTWv3MUgdgxkl6S2cnQ8Zz+aABmxI2eJ1RwCl7mRP0=";
+    }
+    .${stdenv.hostPlatform.system};
   bunFetchFlags = [
     "--os=linux"
     "--cpu=${stdenv.hostPlatform.node.arch}"

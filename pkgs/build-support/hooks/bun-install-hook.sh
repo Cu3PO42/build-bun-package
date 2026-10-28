@@ -10,8 +10,8 @@ bunInstallExecutables() {
     concatTo wrapperFlags makeWrapperArgs makeWrapperArgsArray
 
     while IFS= read -r entry; do
-        binName=$(@jq@/bin/jq -r '.key' <<< "$entry")
-        binPath=$(@jq@/bin/jq -r '.value' <<< "$entry")
+        binName=$(@jq@/bin/jq -r '.key' <<<"$entry")
+        binPath=$(@jq@/bin/jq -r '.value' <<<"$entry")
         # out is supplied by stdenv.
         # shellcheck disable=SC2154
         makeWrapper @runtime@ "$out/bin/$binName" \
@@ -41,7 +41,7 @@ bunInstallPackageTree() {
     local -a packFlags=()
     concatTo packFlags bunFlags bunFlagsArray bunPackFlags bunPackFlagsArray
 
-    while (( ${#pending[@]} )); do
+    while ((${#pending[@]})); do
         current=$(realpath "${pending[0]}")
         pending=("${pending[@]:1}")
         if [[ -n ${installed[$current]-} ]]; then continue; fi
@@ -76,7 +76,7 @@ bunInstallPackageTree() {
             sourceLink="$current/node_modules/${link#"$currentOut/node_modules/"}"
             target=$(realpath "$sourceLink")
             case "$target" in
-                "$projectRoot"|"$projectRoot"/*)
+                "$projectRoot" | "$projectRoot"/*)
                     relative=$(realpath --relative-to="$projectRoot" "$target")
                     targetOut="$projectOut/$relative"
                     ln -sfn "$(realpath -m --relative-to="$(dirname "$link")" "$targetOut")" "$link"

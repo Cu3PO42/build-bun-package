@@ -20,15 +20,18 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-3j73ss9pwkcK4MfeNY/9PFp//Cbc0OSICDdlmHprSso=";
   };
 
-  bunDepsHash = {
-    "aarch64-darwin" = "sha256-XoAbBfMmGgoC42BYtFEQGjiRiJKwogzYzT8YKu0HON8=";
-    "aarch64-linux" = "sha256-y9FGfLqY7Z9MW9YyTU7q3BZIQjWP2qgY11qLGDEOO7Y=";
-    "x86_64-linux" = "sha256-E0OCM5lR0k4jsdYHsFgWMiTObOA80gBNgmerw8qaHks=";
-  }.${stdenv.hostPlatform.system};
+  bunDepsHash =
+    {
+      "aarch64-darwin" = "sha256-XoAbBfMmGgoC42BYtFEQGjiRiJKwogzYzT8YKu0HON8=";
+      "aarch64-linux" = "sha256-y9FGfLqY7Z9MW9YyTU7q3BZIQjWP2qgY11qLGDEOO7Y=";
+      "x86_64-linux" = "sha256-E0OCM5lR0k4jsdYHsFgWMiTObOA80gBNgmerw8qaHks=";
+    }
+    .${stdenv.hostPlatform.system};
   bunFetchFlags = [
     "--os=${stdenv.hostPlatform.node.platform}"
     "--cpu=${stdenv.hostPlatform.node.arch}"
-  ] ++ lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
   bunRunScripts = true;
   bunInstallFlags = [
     "--linker=isolated"
