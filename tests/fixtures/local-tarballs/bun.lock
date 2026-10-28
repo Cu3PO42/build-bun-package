@@ -1,0 +1,49 @@
+// A legacy local tarball row without integrity must still install offline.
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "local-tarballs",
+      "dependencies": {
+        "directory": "file:./directory",
+        "first": "file:./archives/answer.tgz",
+        "local-tarballs": "file:.",
+        "second": "file:./archives/answer.TAR.GZ",
+        "third": "file:./archives/answer.tar"
+      }
+    }
+  },
+  "packages": {
+    "directory": [
+      "directory@file:directory",
+      {}
+    ],
+    "first": [
+      "archive-answer@./archives/answer.tgz",
+      {}
+    ],
+    "local-tarballs": [
+      "local-tarballs@root:",
+      {
+        "bin": {
+          "local-tarballs": "cli.js"
+        }
+      }
+    ],
+    "second": [
+      "archive-answer@./archives/answer.TAR.GZ",
+      {},
+      "sha512-ek98AXpxs/sAop7DRjiQ/nmtDgFb8eE3+x44EI12XspifPjfe5R3h9supcjlM3elB02ouYUfPNWJZzmurVip8g=="
+    ],
+    "third": [
+      "archive-answer@./archives/answer.tar",
+      {},
+      "sha512-w8407yfE8nQHjVaj08/56tAMQFiQuMsRcQ23GzPJy/qMHDpZ8yT7ADwYOVC3pg3Dq8SNYQqnhy5GHpifxElxFQ=="
+    ],
+    "local-tarballs/directory": [
+      "directory@file:directory",
+      {}
+    ]
+  }
+}

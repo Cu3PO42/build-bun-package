@@ -1,0 +1,12 @@
+{
+  "name": "local-tarballs",
+  "version": "1.0.0",
+  "bin": { "local-tarballs": "cli.js" },
+  "dependencies": {
+    "first": "file:./archives/answer.tgz",
+    "second": "file:./archives/answer.TAR.GZ",
+    "third": "file:./archives/answer.tar",
+    "directory": "file:./directory",
+    "local-tarballs": "file:."
+  }
+}

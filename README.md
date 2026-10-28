@@ -118,9 +118,13 @@ from derivation. The text lockfile must be available during evaluation; reading
 it from an unbuilt derivation would require IFD.
 
 Supported sources are integrity-pinned npm registry packages and HTTP(S)
-tarballs, plus workspaces and local `file:`/`link:` directories. Registry aliases,
-prereleases, catalogs, and dependency patches are supported. The importer always uses a private writable cache; `makeCacheWritable` is
-unnecessary. Git dependencies, local tarballs, binary `bun.lockb`,
+tarballs, local `.tgz`/`.tar.gz`/`.tar` archives, workspaces, local `file:`/`link:`
+directories, and `root:` self-references. Archive suffixes are case-insensitive.
+Local archives are read from the package source during installation; older lock
+rows without integrity are supported because Nix already supplies the source.
+Registry aliases, prereleases, catalogs, and dependency patches are supported.
+The importer always uses a private writable cache; `makeCacheWritable` is
+unnecessary. Git dependencies and binary `bun.lockb`,
 and remote packages without supported integrity hashes are rejected. Use
 `fetchBunDeps` for those projects. Convert binary locks with
 `bun install --save-text-lockfile --frozen-lockfile --lockfile-only` first if desired.
@@ -603,6 +607,12 @@ Other Git protocols and private Git authentication remain untested.
 scoped registries, aliases, prereleases, direct tarballs, and both linkers.
 Run `bun tests/test-jsonc.ts` for a differential parser test against
 `Bun.JSONC.parse`: 1,009 valid inputs and 17 malformed inputs, with IFD disabled.
+
+Local-archive checks include compressed and uncompressed archives, legacy rows
+without integrity, self-references, and installed links after deleting the source.
+Linux importer checks also cover ELF preparation and lifecycle scripts with both
+linkers. They pass a separately available `lockFile` for a generated source,
+avoiding IFD even when that source contains platform-specific compiled tarballs.
 
 For upstream context, see the
 [Bun 1.4.4 release notes](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch) and

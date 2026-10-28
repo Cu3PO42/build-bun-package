@@ -1,0 +1,16 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "elf-example",
+      "dependencies": { "elf-tool": "file:./tool.tgz" },
+      "optionalDependencies": { "foreign-tool": "file:./foreign.tgz" }
+    }
+  },
+  "trustedDependencies": ["elf-tool"],
+  "packages": {
+    "elf-tool": ["elf-tool@./tool.tgz", { "hasInstallScript": true, "bin": { "elf-tool": "bin/tool" } }],
+    "foreign-tool": ["foreign-tool@./foreign.tgz", { "os": "!linux" }]
+  }
+}

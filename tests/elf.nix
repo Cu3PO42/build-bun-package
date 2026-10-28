@@ -1,4 +1,7 @@
-{ pkgs }:
+{
+  pkgs,
+  importLock ? false,
+}:
 let
   library = pkgs.runCommandCC "bun-elf-library" { } ''
     mkdir -p "$out/lib"
@@ -57,14 +60,22 @@ let
         substituteInPlace bun.lock --replace-fail \
           '"foreign-tool@./foreign.tgz", {}' \
           '"foreign-tool@./foreign.tgz", { "os": "!linux" }'
+        ${pkgs.lib.optionalString importLock "cp ${./fixtures/elf/bun.lock} bun.lock"}
       '';
   # These local tarballs contain binaries built for the test's platform. Use
   # the actual fetcher without fixed-output hashing; no network is needed.
-  deps = (pkgs.fetchBunDeps { src = fixture; }).overrideAttrs (_: {
-    outputHash = null;
-    outputHashAlgo = null;
-    outputHashMode = null;
-  });
+  deps =
+    if importLock then
+      pkgs.importBunLock {
+        src = fixture;
+        lockFile = ./fixtures/elf/bun.lock;
+      }
+    else
+      (pkgs.fetchBunDeps { src = fixture; }).overrideAttrs (_: {
+        outputHash = null;
+        outputHashAlgo = null;
+        outputHashMode = null;
+      });
   package = pkgs.buildBunPackage {
     pname = "bun-elf-example";
     version = "1";
@@ -80,7 +91,9 @@ let
       test "$(cat "$packageOut/node_modules/elf-tool/lifecycle-runs")" = 42
       test ! -e "$packageOut/node_modules/foreign-tool"
       test "$(patchelf --print-interpreter "$packageOut/node_modules/elf-tool/bin/tool")" != /missing/ld.so
-      test "$(patchelf --print-interpreter "$(find "$bunDeps" -type f -path '*/bin/tool' | head -n1)")" = /missing/ld.so
+      ${pkgs.lib.optionalString (!importLock) ''
+        test "$(patchelf --print-interpreter "$(find "$bunDeps" -type f -path '*/bin/tool' | head -n1)")" = /missing/ld.so
+      ''}
       sourceTree=$PWD
       cd "$TMPDIR"
       rm -rf "$sourceTree" "$BUN_INSTALL_CACHE_DIR"

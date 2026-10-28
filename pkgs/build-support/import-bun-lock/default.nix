@@ -54,8 +54,11 @@ let
                 && builtins.isAttrs (builtins.elemAt entry 2);
               tarball = builtins.match "https?://.+" version != null;
               workspace = lib.hasPrefix "workspace:" version;
-              local = builtins.match "(link:|file:).*" version != null;
-              localTarball = builtins.match "file:.*\\.(tgz|tar\\.gz|tar)$" version != null;
+              local = builtins.match "(link:|file:|root:).*" version != null;
+              # Text locks serialize tarballs as paths, without the manifest's
+              # file: prefix. A file: resolution always denotes a directory.
+              localTarball =
+                !tarball && !local && builtins.match ".*\\.(tgz|tar\\.gz|tar)$" (lib.toLower version) != null;
               scope = builtins.head (lib.splitString "/" packageName);
               packageRegistry = lib.removeSuffix "/" (scopedRegistries.${scope} or registry);
               integrity = if npm then builtins.elemAt entry 3 else builtins.elemAt entry 2;
@@ -64,7 +67,8 @@ let
               fail "malformed package entry '${key}'"
             else if
               (workspace && (length == 1 || (length == 2 && builtins.isAttrs (builtins.elemAt entry 1))))
-              || (local && !localTarball && length == 2 && builtins.isAttrs (builtins.elemAt entry 1))
+              || (local && length == 2 && builtins.isAttrs (builtins.elemAt entry 1))
+              || (localTarball && (length == 2 || length == 3) && builtins.isAttrs (builtins.elemAt entry 1))
             then
               null
             else if
@@ -90,7 +94,7 @@ let
                   hash = integrity;
                 }
             else
-              fail "unsupported source for package '${key}' (${version}); use fetchBunDeps for Git or local tarball dependencies"
+              fail "unsupported source for package '${key}' (${version}); use fetchBunDeps for Git dependencies"
           )
           (
             if validLock then

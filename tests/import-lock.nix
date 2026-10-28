@@ -66,6 +66,21 @@ in
   import-lock-catalogs = imported workspaces.catalogs;
   import-lock-local = imported sources.local-dependencies;
   import-lock-local-isolated = imported sources.local-dependencies-isolated;
+  import-lock-local-tarballs = pkgs.buildBunPackage {
+    pname = "bun-import-local-tarballs";
+    version = "1";
+    src = ./fixtures/local-tarballs;
+    bunDeps = pkgs.importBunLock { src = ./fixtures/local-tarballs; };
+    dontBunBuild = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      sourceTree=$PWD
+      cd "$TMPDIR"
+      rm -rf "$sourceTree" "$BUN_INSTALL_CACHE_DIR"
+      test "$("$out/bin/local-tarballs")" = 'local tarballs work'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+    '';
+  };
   import-lock-patched = imported sources.patched-dependency;
   import-lock-foreign-optional = (imported sources.foreign-optional).overrideAttrs (_: {
     installCheckPhase = ''
@@ -124,21 +139,13 @@ in
   };
   import-lock-evaluation =
     assert succeeds { src = ./fixtures/basic; };
+    assert succeeds { src = ./fixtures/local-tarballs; };
     assert !(succeeds { src = ./fixtures/binary-lock; });
     assert !(succeeds { src = ./fixtures/duplicate-git; });
     assert invalid (lock // { lockfileVersion = 99; });
     assert invalid (lock // { packages = [ ]; });
     assert invalid (lock // { packages.bad = [ ]; });
     assert invalid (lock // { packages.bad = [ "missing-resolution" ]; });
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@file:archive.tgz"
-          { }
-        ];
-      }
-    );
     assert invalid (
       lock
       // {
@@ -191,3 +198,9 @@ in
     );
     pkgs.runCommand "bun-import-lock-evaluation" { } "touch $out";
 }
+// pkgs.lib.mapAttrs' (name: drv: pkgs.lib.nameValuePair "import-lock-${name}" drv) (
+  import ./elf.nix {
+    inherit pkgs;
+    importLock = true;
+  }
+)
