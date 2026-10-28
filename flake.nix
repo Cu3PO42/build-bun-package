@@ -75,7 +75,6 @@
           example-models-dev = pkgs.callPackage ./integration/models-dev.nix { };
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          example-convertx = pkgs.callPackage ./integration/convertx.nix { };
           example-equibop = pkgs.callPackage ./integration/equibop.nix { };
         }
       );

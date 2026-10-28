@@ -84,7 +84,6 @@ jobs:
         system: ${{ fromJSON(inputs.all-platforms && '["x86_64-linux","aarch64-linux","aarch64-darwin"]' || '["x86_64-linux"]') }}
         package:
           - balatro-mod-manager-web
-          - convertx
           - equibop
           - filen-cli
           - gitlab-ci-local
@@ -94,8 +93,6 @@ jobs:
           - opencode
           - swagger-typescript-api
         exclude:
-          - system: aarch64-darwin
-            package: convertx
           - system: aarch64-darwin
             package: equibop
     runs-on: ${{ fromJSON('{"x86_64-linux":"ubuntu-24.04","aarch64-linux":"ubuntu-24.04-arm","aarch64-darwin":"macos-15"}')[matrix.system] }}

@@ -66,7 +66,6 @@ assert self.packages.${system}.bun.drvPath == pkgs.bun.drvPath;
 assert self.packages.${system}.bunNodeGyp.drvPath == helpers.bunNodeGyp.drvPath;
 assert self.packages.${system}.bunNodeHeaders.drvPath == helpers.bunNodeHeaders.drvPath;
 assert self.packages.${system}.example-filen-cli.bun.drvPath == pkgs.bun.drvPath;
-assert (self.packages.${system} ? example-convertx) == pkgs.stdenv.hostPlatform.isLinux;
 assert (self.packages.${system} ? example-equibop) == pkgs.stdenv.hostPlatform.isLinux;
 assert example.bun.drvPath == pkgs.bun.drvPath;
 assert example.runtime.drvPath == pkgs.bun.drvPath;
