@@ -32,6 +32,10 @@
     src = ./fixtures/basic;
     bunDeps = example.bunDeps;
     bunBuildScript = "build";
+    preBunInstall = ''
+      test -d "$HOME"
+      test -w "$HOME"
+    '';
     nativeBuildInputs = [
       pkgs.bunHooks.bunConfigHook
       pkgs.bunHooks.bunBuildHook
@@ -40,6 +44,17 @@
     doInstallCheck = true;
     installCheckPhase = ''test "$("$out/bin/bun-example" 3)" = odd'';
   };
+
+  custom-home = example.overrideAttrs (_: {
+    prePatch = ''
+      export HOME="$TMPDIR/custom-home"
+      mkdir -p "$HOME"
+    '';
+    preBunInstall = ''
+      test "$HOME" = "$TMPDIR/custom-home"
+      test -w "$HOME"
+    '';
+  });
 
   functional-script =
     (pkgs.buildBunPackage (final: {

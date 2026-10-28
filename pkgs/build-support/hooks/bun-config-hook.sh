@@ -71,13 +71,10 @@ bunConfigHook() {
         exit 1
     fi
 
-    # Keep user configuration and auto-installed tools out of the builder's home.
-    export HOME="$TMPDIR/home"
     # Keep build logs readable when Bun runs scripts with terminal control codes.
     export BUN_CONFIG_NO_CLEAR_TERMINAL=1
     # The global store creates links outside node_modules that cannot be shipped.
     export BUN_INSTALL_GLOBAL_STORE=0
-    mkdir -p "$HOME"
     # Lifecycle preparation and other cache mutations need a private copy.
     "${bunDependencySetupHook:-bunSetupDependencyCache}"
 

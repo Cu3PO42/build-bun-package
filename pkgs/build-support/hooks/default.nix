@@ -12,6 +12,7 @@
   stdenv,
   cctools,
   srcOnly,
+  writableTmpDirAsHomeHook,
   runtime ? bun,
   buildRuntime ? runtime,
 }:
@@ -43,6 +44,7 @@ let
     propagatedBuildInputs = [
       bun
       bunNodeFallbackHook
+      writableTmpDirAsHomeHook
     ];
     meta.license = lib.licenses.mit;
   } ./bun-config-hook.sh;
