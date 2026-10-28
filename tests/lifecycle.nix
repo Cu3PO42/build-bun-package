@@ -59,6 +59,52 @@ let
       test -f lifecycle-installed
     '';
   });
+
+  prepared-lifecycle = example.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunDeps = example.bunDeps;
+    bunRunScripts = true;
+    postPatch = (old.postPatch or "") + ''
+      cat > check-prepared.cjs <<'JS'
+      const fs = require("fs");
+      if (!fs.existsSync("preparation-hook-ran")) throw new Error("scripts ran before preparation hook");
+      if (fs.existsSync("scripts-ran")) throw new Error("scripts ran twice");
+      if (!fs.readFileSync("node_modules/is-odd/index.js", "utf8").includes("prepared-by-hook")) {
+        throw new Error("cache edit did not survive reinstall");
+      }
+      fs.writeFileSync("scripts-ran", "yes");
+      JS
+      jq '.scripts.postinstall = "node ./check-prepared.cjs"' package.json > package.json.new
+      mv package.json.new package.json
+    '';
+    preBunInstallScripts = ''
+      test ! -e scripts-ran
+      test ! -e preparation-hook-ran
+      test -L node_modules/is-odd/package.json
+      prepared=false
+      shebangPrepared=false
+      for package in "''${bunPreparedCachePackages[@]}"; do
+        if [[ $(jq -r .name "$package/package.json") == is-odd ]]; then
+          printf '\n// prepared-by-hook\n' >> "$package/index.js"
+          prepared=true
+        elif [[ $(jq -r .name "$package/package.json") == esbuild ]]; then
+          test "$(head -n1 "$package/bin/esbuild")" = "#!$(command -v node)"
+          shebangPrepared=true
+        fi
+      done
+      test "$prepared" = true
+      test "$shebangPrepared" = true
+      touch preparation-hook-ran
+    '';
+    postBunInstall = ''
+      test "$(cat scripts-ran)" = yes
+    '';
+    installCheckPhase = ''
+      test "$("$out/bin/bun-example" 3)" = odd
+      grep -q prepared-by-hook "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"
+      test -z "$(find "$out" -type l -lname "$TMPDIR/*" -print)"
+    '';
+  });
 in
 {
   inherit patched-shebang;
@@ -79,6 +125,11 @@ in
   inherit lifecycle-writable;
 
   inherit lifecycle-shebangs;
+
+  lifecycle-preparation-hook = prepared-lifecycle;
+  lifecycle-preparation-hook-isolated = prepared-lifecycle.overrideAttrs (_: {
+    bunInstallFlags = [ "--linker=isolated" ];
+  });
 
   source-shebangs = example.overrideAttrs (old: {
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
@@ -142,6 +193,7 @@ in
     '';
     bunDepsNativeBuildInputs = [ pkgs.jq ];
     makeCacheWritable = true; # Bun's patchedDependencies need cache writes.
+    preBunInstallScripts = "exit 1"; # Must not run when bunRunScripts is disabled.
     preBunInstall = ''test "$BUN_INSTALL_CACHE_DIR" != "$bunDeps"'';
     doInstallCheck = true;
     installCheckPhase = ''

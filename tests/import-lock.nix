@@ -119,6 +119,7 @@ in
   import-lock-trusted-scripts = imported lifecycle.trusted-lifecycle;
   import-lock-disabled-scripts = imported lifecycle.lifecycle-disabled;
   import-lock-source-shebangs = imported lifecycle.source-shebangs;
+  import-lock-preparation-hook = imported lifecycle.lifecycle-preparation-hook;
   import-lock-nested = pkgs.callPackage ./example.nix {
     fixtureSrc = ./fixtures;
     projectRoot = "basic";

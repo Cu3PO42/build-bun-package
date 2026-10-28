@@ -486,6 +486,7 @@ These are Nix derivation attributes. With the overlay, the builder is
 | `bunPruneFlags` | `[]` | Extra arguments to `bun prune` |
 | `bunPackFlags` | `[]` | Extra `bun pm pack` arguments |
 | `preBunInstall`, `postBunInstall` | unset | Hooks around offline installation; the pre-hook runs before automatic source/cache preparation |
+| `preBunInstallScripts` | unset | With `bunRunScripts`, runs after the initial script-free install and automatic patching, before the forced reinstall; `bunPreparedCachePackages` contains the selected writable cache directories |
 | `makeCacheWritable` | `false` | Copy the dependency cache to writable temporary storage; implied by `bunRunScripts` |
 | `makeWrapperArgs` | `[]` | Additional arguments for each executable wrapper |
 | `dontBunInstall` | `false` | Disable the default install phase |
@@ -507,7 +508,8 @@ The config hook runs in `postPatchHooks`, even with a custom `configurePhase`.
 The build, check, and install hooks supply phases only when no corresponding phase is
 provided and their opt-out is unset. Each hook restores the working directory;
 custom phases must enter `bunRoot` themselves and restore the directory before
-the next phase. `preBunInstall` and `postBunInstall` run inside `bunRoot`.
+the next phase. `preBunInstall`, `preBunInstallScripts`, and `postBunInstall`
+run inside `bunRoot`.
 
 Source selection, unpack, and patch settings are forwarded to the dependency
 fetcher, but package `nativeBuildInputs`, `buildInputs`, and `env` are not.
@@ -576,6 +578,8 @@ hooks from running during fetching or introducing dependency cycles.
 The store cache is read directly by default. `makeCacheWritable` uses a private
 temporary copy, leaving the shared cache unchanged. `bunRunScripts` also enables
 this copy. Setting `makeCacheWritable` alone leaves scripts disabled.
+The config hook propagates Nixpkgs' `writableTmpDirAsHomeHook` to provide a
+writable temporary home when needed, preserving an already writable `HOME`.
 
 With scripts enabled, an initial offline install skips scripts and uses Bun's
 hoisted linker and symlink backend. The final install honors the selected
@@ -586,6 +590,14 @@ dependency patches. When `autoPatchelfHook` is supplied, their ELF binaries are
 prepared at the same point. A forced offline install copies those prepared
 packages and runs trusted scripts. The forced reinstall is necessary: an ordinary second
 install skips dependency scripts. No staging-cache links are shipped.
+
+`preBunInstallScripts` runs after that initial install and automatic shebang/ELF
+patching, before the forced reinstall. It runs only with `bunRunScripts = true`.
+The Bash array `bunPreparedCachePackages` contains the selected writable cache
+directories. Apply custom dependency edits there: replacing symlinked files in
+the staging `node_modules` tree can leave the cache unchanged, so those edits
+would be lost during the reinstall. Prepare any new executable files added by
+the hook as needed. `postBunInstall` runs after the final install and its fixups.
 
 The separation of installation and script execution is inspired by
 [bun2nix's lifecycle phases](https://github.com/nix-community/bun2nix/blob/0f2a1f0b6f42cebe3b149bf62d38754c5e0e9729/nix/mk-derivation/hook.sh)

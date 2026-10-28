@@ -6,10 +6,15 @@ bunPatchShebangs() {
     # Binary lockfiles have an executable shebang but fixed binary offsets;
     # rewriting that line corrupts them. Batch paths to stay below ARG_MAX.
     local -a scripts=()
+    # Process up to 32 search roots per find invocation. Positional arguments
+    # remain separate paths, including any spaces, through "${@:1:32}".
     while (($#)); do
+        # Read at most 32 NUL-delimited paths at a time. mapfile clears scripts
+        # on each read and can succeed at EOF, so also check the array length.
         while mapfile -d '' -n 32 -t scripts && ((${#scripts[@]})); do
             patchShebangs "${scripts[@]}"
         done < <(find "${@:1:32}" -type f -perm -0100 ! -name bun.lockb -print0)
+        # Process substitution feeds the inner loop without a pipeline subshell.
         if (($# <= 32)); then break; fi
         shift 32
     done
@@ -25,6 +30,9 @@ bunPatchElf() {
 bunFixupElf() {
     # Early patching can reference libraries inside the build tree or private
     # cache. Resolve them against the installed outputs before RPATH auditing.
+    # This Nixpkgs function normally runs in postFixup, but also works here:
+    # it patches all existing non-debug outputs and honors dontAutoPatchelf.
+    # Its normal postFixup call still runs after patchelf's RPATH shrinking.
     if declare -F autoPatchelfPostFixup >/dev/null; then
         autoPatchelfPostFixup
     fi
@@ -87,35 +95,47 @@ bunConfigHook() {
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
     if [[ -n ${bunRunScripts-} ]]; then
-        # Let Bun apply patchedDependencies to pristine cache entries first.
-        # Symlinked files identify the cache packages selected for this platform
-        # without decoding Bun's lockfile or its internal cache directory names.
-        # Bun's isolated linker does not symlink package files for this backend.
-        # Only staging uses hoisting; the final install honors the chosen linker.
+        # First materialize the dependency graph without executing any scripts.
+        # Bun applies patchedDependencies against pristine cached package files;
+        # patching their shebangs earlier could invalidate upstream patch hunks.
+        # The symlink backend makes package files point into our writable cache.
+        # Hoisting is needed only here: the isolated linker does not expose those
+        # file symlinks. The final copy install honors the requested linker.
         if ! bun install "${installFlags[@]}" --offline --frozen-lockfile --linker hoisted --backend symlink --ignore-scripts; then
             echo 'bunConfigHook: offline dependency preparation failed' >&2
             exit 1
         fi
         local cacheRoot manifest target directory
-        local -a preparedCachePackages=()
+        # Public to preBunInstallScripts: edits to these cache directories survive
+        # the final reinstall. Replacing a file symlink in the staging tree would
+        # only change that disposable tree, not the cached file Bun copies later.
+        local -a bunPreparedCachePackages=()
         local -A prepared=()
         cacheRoot=$(realpath "$BUN_INSTALL_CACHE_DIR")
+        # Follow each symlinked manifest to its real cache directory. This uses
+        # Bun's own platform/dependency selection instead of parsing lockfiles or
+        # guessing cache names. Workspace links outside the cache are excluded.
         while IFS= read -r -d "" manifest; do
             target=$(realpath "$manifest")
             if [[ $target == "$cacheRoot/"* ]]; then
                 directory=$(dirname "$target")
+                # A package can appear through several dependency paths. Prepare
+                # its cache directory once, using an associative array as a set.
                 if [[ -z ${prepared[$directory]-} ]]; then
                     prepared[$directory]=1
-                    preparedCachePackages+=("$directory")
+                    bunPreparedCachePackages+=("$directory")
                 fi
             fi
         done < <(find . -path '*/node_modules/*' -type l -name package.json -print0)
-        if ((${#preparedCachePackages[@]})); then
-            bunPatchShebangs "${preparedCachePackages[@]}"
+        if ((${#bunPreparedCachePackages[@]})); then
+            bunPatchShebangs "${bunPreparedCachePackages[@]}"
         fi
         # Only selected packages are prepared, leaving foreign OS/CPU/libc
         # variants in the all-platform cache untouched.
-        bunPatchElf . "${preparedCachePackages[@]}"
+        bunPatchElf . "${bunPreparedCachePackages[@]}"
+
+        runHook preBunInstallScripts
+
         # A plain second install skips dependency scripts. Force a reinstall
         # from the prepared cache, retaining Bun's normal trust rules.
         installFlags+=(--force)
