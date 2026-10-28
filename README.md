@@ -4,10 +4,11 @@
 This implementation is enabled by new commands in [Bun 1.4.4](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
 
 This is an early implementation and comes with no guarantees nor any promise of long term maintenance.
+I am still actively improving this project and its public interface may yet change.
 
 ## Limitations
 
-Since the commands this relies on are only available starting with the newest version, we do not know if the format will stay stable with newer versions.
+Since the commands this relies on are only available starting with Bun 1.4.4, which is at the time of writing the newest version, we do not know if the format will stay stable with newer versions.
 It is possible that the hash for the dependency FOD will change with Bun updates.
 
 ## Differences from `buildNpmPackage`
@@ -25,8 +26,9 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 ## AI Disclosure
 
 This code was written primarily by LLMs (mostly GPT-6.1 Sol) under my direction.
-However, all of the core code excluding tests was reviewed by me (a human).
-Further reviews are in progress.
+The end goal is to have all code (except possibly tests) reviewed by me (a human).
+This is already true for the core logic and as of a prior state it was true for all code, but additional work has introduced new, not fully reviewed code.
+I aim to review and clean this up soon.
 
 Beware that any content beyond this line is also at least partially written by AI.
 
