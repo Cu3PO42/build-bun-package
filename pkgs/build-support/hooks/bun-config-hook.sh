@@ -2,27 +2,6 @@
 # stdenv enables errexit, so failed directory changes abort the build.
 # shellcheck disable=SC2164
 
-bunPatchShebangs() {
-    # Binary lockfiles have an executable shebang but fixed binary offsets;
-    # temporarily clear their owner-execute bit so patchShebangs skips them.
-    local lockfile
-    local -a lockfiles=()
-    # Batch search roots to keep find's arguments below ARG_MAX.
-    while (($#)); do
-        lockfiles=()
-        while IFS= read -r -d "" lockfile; do
-            chmod u-x "$lockfile"
-            lockfiles+=("$lockfile")
-        done < <(find "${@:1:32}" -type f -name bun.lockb -perm -0100 -print0)
-        patchShebangs "${@:1:32}"
-        for lockfile in "${lockfiles[@]}"; do
-            chmod u+x "$lockfile"
-        done
-        if (($# <= 32)); then break; fi
-        shift 32
-    done
-}
-
 bunPatchElf() {
     # Reuse the caller's autoPatchelfHook and its library/search-path settings.
     if [[ -z ${dontAutoPatchelf-} ]] && declare -F autoPatchelf >/dev/null; then
@@ -93,7 +72,16 @@ bunConfigHook() {
 
     # Project helpers and linked local/workspace packages can execute during
     # installation, before stdenv's final output shebang fixup.
-    bunPatchShebangs .
+    # Protect the project's binary lockfile from shebang rewriting.
+    local executableLockfile=false
+    if [[ -f bun.lockb && -x bun.lockb ]]; then
+        chmod u-x bun.lockb
+        executableLockfile=true
+    fi
+    patchShebangs .
+    if "$executableLockfile"; then
+        chmod u+x bun.lockb
+    fi
 
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
@@ -131,7 +119,7 @@ bunConfigHook() {
             fi
         done < <(find . -path '*/node_modules/*' -type l -name package.json -print0)
         if ((${#bunPreparedCachePackages[@]})); then
-            bunPatchShebangs "${bunPreparedCachePackages[@]}"
+            patchShebangs "${bunPreparedCachePackages[@]}"
         fi
         # Only selected packages are prepared, leaving foreign OS/CPU/libc
         # variants in the all-platform cache untouched.
@@ -153,7 +141,7 @@ bunConfigHook() {
 
     if [[ -d node_modules ]]; then
         chmod -R u+w node_modules
-        bunPatchShebangs node_modules
+        patchShebangs node_modules
     fi
 
     # Also prepare ordinary script-free installs and newly generated binaries
