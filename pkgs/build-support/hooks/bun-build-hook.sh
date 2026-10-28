@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# stdenv enables errexit, so failed directory changes abort the build.
+# shellcheck disable=SC2164
 
 bunBuildHook() {
     echo "Executing bunBuildHook"

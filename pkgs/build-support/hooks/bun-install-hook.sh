@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# stdenv enables errexit, so failed directory changes abort the build.
+# shellcheck disable=SC2164
 
 # The upstream nodejsInstallExecutables hook can use Bun via hostNode, but its
 # string-bin handling uses the full scoped name, and splits bin paths on spaces.
@@ -10,6 +12,8 @@ bunInstallExecutables() {
     while IFS= read -r entry; do
         binName=$(@jq@/bin/jq -r '.key' <<< "$entry")
         binPath=$(@jq@/bin/jq -r '.value' <<< "$entry")
+        # out is supplied by stdenv.
+        # shellcheck disable=SC2154
         makeWrapper @runtime@ "$out/bin/$binName" \
             --add-flags "$(printf '%q' "$packageOut/$binPath")" "${wrapperFlags[@]}"
     done < <(@jq@/bin/jq -c 'if (.bin | type) == "string" then {key: (.name | split("/") | last), value: .bin} elif (.bin | type) == "object" then .bin | to_entries[] else empty end' "$packageJson")

@@ -15,6 +15,7 @@ in
 // import ./lifecycle.nix { inherit pkgs example; }
 // import ./hooks.nix { inherit pkgs example; }
 // import ./evaluation.nix { inherit pkgs example; }
+// import ./lint.nix { inherit pkgs; }
 // import ./cache.nix {
   inherit pkgs example;
   inherit (workspaces) workspace catalogs;
