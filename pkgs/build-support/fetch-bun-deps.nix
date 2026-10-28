@@ -46,10 +46,11 @@ stdenvNoCC.mkDerivation (
         fi
         # Refuse manifest/lockfile drift even though fetching never saves a lock.
         # Fetch optional platform variants supported by Bun for a platform-independent cache.
-        # Render the Nix flag lists once, preserving argument boundaries even
-        # without structured attrs. The inherited shell variables are not
-        # expanded here; *FlagsArray provide separate shell-hook additions.
-        bun pm fetch ${lib.escapeShellArgs finalAttrs.bunFlags} "''${bunFlagsArray[@]}" --frozen-lockfile --os '*' --cpu '*' --libc '*' ${lib.escapeShellArgs finalAttrs.bunFetchFlags} "''${bunFetchFlagsArray[@]}"
+        fetchFlags=()
+        concatTo fetchFlags bunFlags bunFlagsArray
+        fetchFlags+=(--frozen-lockfile --os '*' --cpu '*' --libc '*')
+        concatTo fetchFlags bunFetchFlags bunFetchFlagsArray
+        bun pm fetch "''${fetchFlags[@]}"
         # Temporary download/extraction files are not part of the reusable cache.
         rm -rf "$out/.tmp"
         # Bun can create absolute aliases to other entries in this cache (for

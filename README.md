@@ -501,8 +501,9 @@ to the build script, so Bun options belong in `bunFlags`.
 Hooks accept strings, structured arrays, and shell `*FlagsArray` variables using
 stdenv's `concatTo` convention. Set `__structuredAttrs = true` when hook flag
 arguments contain spaces; ordinary unstructured list attributes become
-space-separated strings. The fetcher shell-escapes its Nix flag lists and
-preserves spaces in either mode.
+space-separated strings. The fetcher uses the same convention: `preInstall`
+can modify `bunFlags` and `bunFetchFlags` or add arguments through
+`bunFlagsArray` and `bunFetchFlagsArray`.
 
 The config hook runs in `postPatchHooks`, even with a custom `configurePhase`.
 The build, check, and install hooks supply phases only when no corresponding phase is

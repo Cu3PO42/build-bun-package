@@ -134,6 +134,7 @@ in
       hash = example.bunDeps.outputHash;
     }).overrideAttrs
       (_: {
+        __structuredAttrs = true;
         bunRoot = "basic";
         bunFlags = [ "--no-env-file" ];
         bunFetchFlags = [
