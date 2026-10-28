@@ -37,6 +37,43 @@ in
 {
   inherit workspace catalogs;
 
+  workspace-lifecycle-isolated = workspace.overrideAttrs (_: {
+    bunDeps = workspace.bunDeps;
+    bunWorkspace = "apps/cli";
+    bunRunScripts = true;
+    bunInstallFlags = [ "--linker=isolated" ];
+    installPhase = null;
+    postPatch = ''
+      bun -e '
+        const fs = require("fs");
+        for (const [file, script] of [["package.json", "postinstall"], ["apps/cli/package.json", "install"]]) {
+          const p = JSON.parse(fs.readFileSync(file, "utf8"));
+          p.scripts[script] = "./install-helper";
+          fs.writeFileSync(file, JSON.stringify(p));
+        }
+      '
+      for directory in . apps/cli; do
+        cat > "$directory/install-helper" <<'SH'
+      #!/missing/interpreter/bash
+      printf 'ran\n' >> install-runs
+      SH
+        chmod +x "$directory/install-helper"
+      done
+    '';
+    postBunInstall = ''
+      test "$(wc -l < install-runs)" -eq 1
+      test "$(wc -l < apps/cli/install-runs)" -eq 1
+      test -d node_modules/.bun
+    '';
+    installCheckPhase = ''
+      sourceTree=$PWD
+      cd "$TMPDIR"
+      rm -rf "$sourceTree" "$BUN_INSTALL_CACHE_DIR"
+      test "$("$out/bin/workspace-cli")" = 'workspace works'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+    '';
+  });
+
   workspace-installed = pkgs.buildBunPackage {
     pname = "bun-workspace-installed";
     version = "1";
