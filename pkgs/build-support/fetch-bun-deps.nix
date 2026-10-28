@@ -42,7 +42,24 @@ stdenvNoCC.mkDerivation (
         cd "$bunRoot"
         if [[ -f bun.lock ]]; then lockfile=bun.lock
         elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
-        else echo "fetchBunDeps: a committed bun.lock or bun.lockb is required" >&2; exit 1
+        else
+          if [[ ! -f npm-shrinkwrap.json && ! -f package-lock.json && ! -f yarn.lock && ! -f pnpm-lock.yaml ]]; then
+            echo "fetchBunDeps: a committed Bun, npm, Yarn, or pnpm lockfile is required" >&2
+            exit 1
+          fi
+          # Migration may consult registry metadata and update workspace manifests.
+          # Keep its timestamped registry cache outside the fixed-output path.
+          bun ${./migrate-lock.ts} snapshot "$TMPDIR/bun-migration-before.json"
+          migrateFlags=()
+          concatTo migrateFlags bunFlags bunFlagsArray
+          BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-migration-cache" bun pm migrate "''${migrateFlags[@]}"
+          if [[ ! -f bun.lock ]]; then
+            echo "fetchBunDeps: Bun did not produce a migrated bun.lock" >&2
+            exit 1
+          fi
+          mkdir -p "$out/.nix-bun"
+          bun ${./migrate-lock.ts} record "$TMPDIR/bun-migration-before.json" "$out/.nix-bun/migration.json"
+          lockfile=bun.lock
         fi
         # Refuse manifest/lockfile drift even though fetching never saves a lock.
         # Fetch optional platform variants supported by Bun for a platform-independent cache.

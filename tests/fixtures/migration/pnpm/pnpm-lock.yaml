@@ -1,0 +1,18 @@
+lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+importers:
+  .:
+    dependencies:
+      is-docker:
+        specifier: 2.2.1
+        version: 2.2.1
+  packages/message: {}
+packages:
+  is-docker@2.2.1:
+    resolution: {integrity: sha512-F+i2BKsFrH66iaUFc0woD8sLy8getkwTwtOBjvs56Cx4CgJDeKQeqfz8wAYiSb8JOprWhHH5p77PbmYCvvUuXQ==}
+    engines: {node: '>=6'}
+    hasBin: true
+snapshots:
+  is-docker@2.2.1: {}

@@ -40,10 +40,17 @@ rec {
     propagatedBuildInputs = [ bun ];
     substitutions = { inherit buildRuntimeNodeShim; };
   } ./bun-node-fallback-hook.sh;
+  bunMigrateHook = makeSetupHook {
+    name = "bun-migrate-hook";
+    propagatedBuildInputs = [ bun ];
+    substitutions.migrateLock = ../migrate-lock.ts;
+    meta.license = lib.licenses.mit;
+  } ./bun-migrate-hook.sh;
   bunConfigHook = makeSetupHook {
     name = "bun-config-hook";
     propagatedBuildInputs = [
       bun
+      bunMigrateHook
       bunNodeFallbackHook
       writableTmpDirAsHomeHook
     ];

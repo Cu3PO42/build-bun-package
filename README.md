@@ -63,7 +63,7 @@ Add this repository as a flake input named `nix-bun`. No overlay is required:
 }
 ```
 
-Commit `package.json` and `bun.lock` (or `bun.lockb`). Build once with
+Commit `package.json` and a supported lockfile. Build once with
 `lib.fakeHash`, copy the `got: sha256-…` value from Nix's hash mismatch into
 `bunDepsHash`, then build again. Repeat when dependencies change. To fetch only
 the dependencies, run `nix build .#my-app.bunDeps`.
@@ -74,9 +74,22 @@ version: text `bun.lock`, binary `bun.lockb`, and other package managers'
 lockfiles through [Bun's upstream migration support](https://bun.com/docs/pm/lockfile#automatic-lockfile-migration),
 including supported npm, Yarn, and pnpm formats. This also applies when
 `buildBunPackage` calls `fetchBunDeps` implicitly through `bunDepsHash`.
-Currently, this repository's fetcher and install-hook metadata checks require
-`bun.lock` or `bun.lockb`, so other package managers' lockfiles must first be
-migrated with Bun and the resulting Bun lockfile included in the package source.
+When no `bun.lock` or `bun.lockb` is present, `fetchBunDeps` runs `bun pm migrate`
+before fetching. Supported foreign lockfiles are `npm-shrinkwrap.json`,
+`package-lock.json`, `yarn.lock`, and `pnpm-lock.yaml`; the selected Bun version
+determines which versions and features it can migrate. Bun handles selection
+when several lockfiles are present. Unsupported inputs fail without falling
+back to an unlocked install.
+
+The cache contains the generated Bun lockfile and any manifest edits made by
+migration. Migration can consult the registry for missing metadata; its temporary
+registry cache is excluded from the fixed-output result. The separate
+`bunHooks.bunMigrateHook`, propagated by the config hook, applies the saved result
+after project patches and before offline installation. Upstream does not need to
+commit a generated Bun lockfile. Manifest edits are merged by field, preserving
+unrelated build-side changes such as scripts and descriptions. Conflicting edits
+fail with the affected field; dependency changes still require a matching cache
+and must pass Bun's frozen-lockfile validation.
 
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
@@ -537,7 +550,7 @@ the next phase. `preBunInstall`, `preBunInstallScripts`, and `postBunInstall`
 run inside `bunRoot`.
 
 Source selection (`src`, `srcs`, `sourceRoot`) and common patch settings
-(`prePatch`, `patches`, `postPatch`, `patchFlags`) are forwarded to the dependency
+(`prePatch`, `patchPhase`, `patches`, `postPatch`, `patchFlags`) are forwarded to the dependency
 fetcher, but package `nativeBuildInputs`, `buildInputs`, and `env` are not.
 If a shared `postPatch` needs jq, add it to both `nativeBuildInputs` and
 `bunDepsNativeBuildInputs`; Git dependencies normally need Git only in
@@ -545,6 +558,11 @@ If a shared `postPatch` needs jq, add it to both `nativeBuildInputs` and
 supply `bunDeps = fetchBunDeps { ... };` explicitly. Direct fetcher calls use `hash`
 instead of `bunDepsHash`, and `nativeBuildInputs` instead of
 `bunDepsNativeBuildInputs`.
+Custom `patchPhase` implementations must call `runHook prePatch` and
+`runHook postPatch`, as in a normal stdenv build. Foreign-lockfile migration
+uses the patched manifests in both the fetcher and package build. When supplying
+`bunDeps` separately, keep the foreign lockfiles, `pnpm-workspace.yaml`, and
+`.yarnrc.yml` consistent with the cached migration inputs.
 
 ### Native toolchain overrides
 
@@ -573,6 +591,10 @@ lockfile. Fixed-output cache paths depend on the cache name and content hash, so
 Bun upgrade can reuse a cache when its contents stay unchanged. Regenerate the
 hash when those contents change. Changes to this project's cache format require
 updating the format marker and expected hashes.
+For migrated projects, metadata additionally records the foreign lockfiles,
+workspace/Yarn migration configuration, and manifest transformations. The
+migration hook validates those inputs and applies only migration's field edits;
+the config hook then checks the generated Bun lockfile as usual.
 
 Fetching covers all platforms in the lockfile, while offline installation
 selects the build host's dependencies. This lets workspaces and platforms share

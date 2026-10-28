@@ -83,6 +83,7 @@ lib.extendMkDerivation {
             src = finalAttrs.src or null;
             srcs = finalAttrs.srcs or null;
             sourceRoot = finalAttrs.sourceRoot or null;
+            patchPhase = finalAttrs.patchPhase or null;
             prePatch = finalAttrs.prePatch or "";
             patches = finalAttrs.patches or [ ];
             postPatch = finalAttrs.postPatch or "";

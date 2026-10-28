@@ -1,0 +1,14 @@
+{
+  "name": "bun-migration-example",
+  "version": "1.0.0",
+  "bin": {
+    "migration-example": "cli.js"
+  },
+  "files": [
+    "cli.js"
+  ],
+  "dependencies": {
+    "is-docker": "2.2.1",
+    "local-message": "portal:./local"
+  }
+}

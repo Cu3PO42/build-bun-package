@@ -1,0 +1,17 @@
+__metadata:
+  version: 8
+  cacheKey: 10c0
+
+"is-docker@npm:2.2.1":
+  version: 2.2.1
+  resolution: "is-docker@npm:2.2.1"
+  languageName: node
+  linkType: hard
+
+"bun-migration-example@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "bun-migration-example@workspace:."
+  dependencies:
+    is-docker: "npm:2.2.1"
+  languageName: unknown
+  linkType: soft
