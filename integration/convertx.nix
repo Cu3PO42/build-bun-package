@@ -102,6 +102,7 @@ buildBunPackage (finalAttrs: {
           libva
           pandoc
           perl5Packages.EmailOutlookMessage
+          potrace
           (python3.withPackages (ps: [ ps.markitdown ] ++ ps.markitdown.optional-dependencies.all))
           resvg
           (texliveBasic.withPackages (ps: [
