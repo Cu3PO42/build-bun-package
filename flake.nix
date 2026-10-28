@@ -82,6 +82,7 @@
       "bun"
       "buildBunPackage"
       "fetchBunDeps"
+      "importBunLock"
       "bunHooks"
       "bunNodeGyp"
       "bunNodeHeaders"

@@ -6,6 +6,7 @@ in
 {
   bun = callPackage ./bun { };
   fetchBunDeps = callPackage ./build-support/fetch-bun-deps.nix { };
+  importBunLock = callPackage ./build-support/import-bun-lock { };
   inherit bunHooks;
   bunNodeGyp = callPackage ./node-gyp { nodejs = null; };
   bunNodeHeaders = callPackage ./node-gyp/node-headers.nix { };

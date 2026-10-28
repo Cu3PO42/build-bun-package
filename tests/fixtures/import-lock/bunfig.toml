@@ -1,0 +1,5 @@
+[install]
+registry = "https://registry.yarnpkg.com"
+
+[install.scopes]
+"@types" = "https://registry.npmjs.org"
