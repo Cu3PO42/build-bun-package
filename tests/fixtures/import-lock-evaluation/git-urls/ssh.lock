@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "first": ["git-answer@git+ssh://git@example.com/repo.git#main", {}, "cf105c473b705c7665ba654b28178a55de18cc06"]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "bad": ["bad@git+https://example.com/repo.git#main", {}, "main"]
+  }
+}

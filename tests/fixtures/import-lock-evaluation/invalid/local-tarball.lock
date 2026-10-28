@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "bad": ["bad@file:archive.tgz", {}, "sha512-abc"]
+  }
+}

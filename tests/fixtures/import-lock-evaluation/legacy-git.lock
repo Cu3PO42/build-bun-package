@@ -1,0 +1,21 @@
+{
+  "configVersion": 1,
+  "lockfileVersion": 2,
+  "packages": {
+    "first": ["git-answer@git+https://example.invalid/repository.git#main", {"bin": {"git-answer": "bin/answer"}, "hasInstallScript": true}, "main"],
+    "second": ["git-answer@git+https://example.invalid/repository.git#main", {"bin": {"git-answer": "bin/answer"}, "hasInstallScript": true}, "main"]
+  },
+  "trustedDependencies": [
+    "first",
+    "second"
+  ],
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "first": "git+https://example.invalid/repository.git#main",
+        "second": "git+https://example.invalid/repository.git#main"
+      },
+      "name": "git-source-example"
+    }
+  }
+}

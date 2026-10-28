@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "bad": ["bad@https://example.com/archive.tgz", {}]
+  }
+}

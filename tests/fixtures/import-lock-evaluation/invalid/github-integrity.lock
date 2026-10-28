@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "bad": ["bad@github:owner/repository#1234567", {}, "owner-repository-1234567"]
+  }
+}

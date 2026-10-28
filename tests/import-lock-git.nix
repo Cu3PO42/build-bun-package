@@ -66,14 +66,9 @@ let
   githubLock = import ../pkgs/build-support/import-bun-lock/jsonc.nix (
     builtins.readFile ./fixtures/duplicate-git/bun.lock
   );
-  legacyGithubLock = builtins.toFile "legacy-github.lock" (
-    builtins.toJSON (
-      githubLock
-      // {
-        packages = pkgs.lib.mapAttrs (_: row: pkgs.lib.take 3 row) githubLock.packages;
-      }
-    )
-  );
+  # Keep evaluation inputs in the source tree: --no-build does not write toFile files.
+  lockFixtures = ./fixtures/import-lock-evaluation;
+  legacyGithubLock = lockFixtures + "/legacy-github.lock";
   legacyGithub = sources.duplicate-git.overrideAttrs (_: {
     bunDeps = pkgs.importBunLock {
       src = ./fixtures/duplicate-git;
@@ -82,21 +77,7 @@ let
     };
     postPatch = "cp ${legacyGithubLock} bun.lock";
   });
-  lock = import ../pkgs/build-support/import-bun-lock/jsonc.nix (
-    builtins.readFile ./fixtures/git-source/bun.lock
-  );
-  legacyGitLock = builtins.toFile "legacy-git.lock" (
-    builtins.toJSON (
-      lock
-      // {
-        packages = pkgs.lib.mapAttrs (_: row: [
-          "git-answer@git+https://example.invalid/repository.git#main"
-          (builtins.elemAt row 1)
-          "main"
-        ]) lock.packages;
-      }
-    )
-  );
+  legacyGitLock = lockFixtures + "/legacy-git.lock";
   legacyGit = git.overrideAttrs (_: {
     postPatch = "cp ${legacyGitLock} bun.lock";
     bunDeps = pkgs.importBunLock {
@@ -109,7 +90,7 @@ let
     };
   });
   checkUrl =
-    url: expected:
+    name: expected:
     let
       importer = pkgs.importBunLock.override {
         fetchGit =
@@ -118,18 +99,11 @@ let
           assert args.rev == rev;
           ./fixtures/git-source/checkout;
       };
-      changed = lock // {
-        packages.first = [
-          "git-answer@git+${url}#main"
-          { }
-          rev
-        ];
-      };
     in
     builtins.isString
       (importer {
         src = ./fixtures/git-source;
-        lockFile = builtins.toFile "git-url.lock" (builtins.toJSON changed);
+        lockFile = lockFixtures + "/git-urls/${name}.lock";
       }).drvPath;
 in
 {
@@ -143,14 +117,14 @@ in
   import-lock-github-legacy = legacyGithub;
   import-lock-mixed-sources = imported sources.git-tarball-registry;
   import-lock-git-urls =
-    assert checkUrl "https://example.com/repo.git" "https://example.com/repo.git";
-    assert checkUrl "git://example.com/repo.git" "git://example.com/repo.git";
-    assert checkUrl "ssh://git@example.com/repo.git" "ssh://git@example.com/repo.git";
-    assert checkUrl "ssh://git@example.com:2222/repo.git" "ssh://git@example.com:2222/repo.git";
-    assert checkUrl "ssh://git@example.com:owner/repo.git" "git@example.com:owner/repo.git";
-    assert checkUrl "ssh://git@example.com:/repo.git" "git@example.com:/repo.git";
-    assert checkUrl "ssh://git@[::1]/repo.git" "ssh://git@[::1]/repo.git";
-    assert checkUrl "ssh://git@[::1]:2222/repo.git" "ssh://git@[::1]:2222/repo.git";
-    assert checkUrl "ssh://git@[::1]:owner/repo.git" "git@[::1]:owner/repo.git";
+    assert checkUrl "https" "https://example.com/repo.git";
+    assert checkUrl "git" "git://example.com/repo.git";
+    assert checkUrl "ssh" "ssh://git@example.com/repo.git";
+    assert checkUrl "ssh-port" "ssh://git@example.com:2222/repo.git";
+    assert checkUrl "scp" "git@example.com:owner/repo.git";
+    assert checkUrl "scp-absolute" "git@example.com:/repo.git";
+    assert checkUrl "ssh-ipv6" "ssh://git@[::1]/repo.git";
+    assert checkUrl "ssh-ipv6-port" "ssh://git@[::1]:2222/repo.git";
+    assert checkUrl "scp-ipv6" "git@[::1]:owner/repo.git";
     pkgs.runCommand "bun-import-git-urls" { } "touch $out";
 }

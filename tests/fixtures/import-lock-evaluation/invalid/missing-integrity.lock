@@ -1,0 +1,7 @@
+{
+  "lockfileVersion": 2,
+  "workspaces": {},
+  "packages": {
+    "bad": ["bad@1.0.0", "", {}, ""]
+  }
+}

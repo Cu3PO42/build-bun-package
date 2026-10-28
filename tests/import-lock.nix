@@ -35,16 +35,10 @@ let
   sourceLock = import ../pkgs/build-support/import-bun-lock/jsonc.nix (
     builtins.readFile ./fixtures/import-lock/bun.lock
   );
-  legacyTarballLock = builtins.toFile "legacy-tarball.lock" (
-    builtins.toJSON (
-      sourceLock
-      // {
-        packages = sourceLock.packages // {
-          is-number = pkgs.lib.take 2 sourceLock.packages.is-number;
-        };
-      }
-    )
-  );
+  # These inputs must be readable during `nix flake check --no-build`, when
+  # builtins.toFile only computes a store path without writing the file.
+  lockFixtures = ./fixtures/import-lock-evaluation;
+  legacyTarballLock = lockFixtures + "/legacy-tarball.lock";
   lifecycle = import ./lifecycle.nix { inherit pkgs example; };
   patchedScripts = (imported lifecycle.patched-shebang).overrideAttrs (_: {
     installCheckPhase = ''
@@ -54,17 +48,13 @@ let
       test -z "$(find "$out" -type l -lname "$TMPDIR/*" -print)"
     '';
   });
-  lock = import ../pkgs/build-support/import-bun-lock/jsonc.nix (
-    builtins.readFile ./fixtures/workspace/bun.lock
-  );
-  lockFile = value: builtins.toFile "bun.lock" (builtins.toJSON value);
   # Force evaluation of the manifest, including every package's fetcher.
   succeeds = args: (builtins.tryEval (pkgs.importBunLock args).drvPath).success;
   invalid =
-    value:
+    name:
     !(succeeds {
       src = ./fixtures/workspace;
-      lockFile = lockFile value;
+      lockFile = lockFixtures + "/invalid/${name}.lock";
     });
 in
 {
@@ -190,80 +180,17 @@ in
     assert succeeds { src = ./fixtures/local-tarballs; };
     assert !(succeeds { src = ./fixtures/binary-lock; });
     assert succeeds { src = ./fixtures/duplicate-git; };
-    assert invalid (lock // { lockfileVersion = 99; });
-    assert invalid (lock // { packages = [ ]; });
-    assert invalid (lock // { packages.bad = [ ]; });
-    assert invalid (lock // { packages.bad = [ "missing-resolution" ]; });
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@git+https://example.com/repo.git#main"
-          { }
-          "main"
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@github:owner/repository#1234567"
-          { }
-          "owner-repository-1234567"
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@file:local"
-          "not metadata"
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@1.0.0"
-          ""
-          { }
-          ""
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@1.0.0"
-          ""
-          { }
-          "md5-abc"
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@https://example.com/archive.tgz"
-          { }
-        ];
-      }
-    );
-    assert invalid (
-      lock
-      // {
-        packages.bad = [
-          "bad@file:archive.tgz"
-          { }
-          "sha512-abc"
-        ];
-      }
-    );
+    assert invalid "lockfile-version";
+    assert invalid "packages";
+    assert invalid "empty-entry";
+    assert invalid "missing-resolution";
+    assert invalid "git-revision";
+    assert invalid "github-integrity";
+    assert invalid "local-metadata";
+    assert invalid "missing-integrity";
+    assert invalid "unsupported-integrity";
+    assert invalid "tarball-integrity";
+    assert invalid "local-tarball";
     pkgs.runCommand "bun-import-lock-evaluation" { } "touch $out";
 }
 // import ./import-lock-git.nix { inherit pkgs sources; }
