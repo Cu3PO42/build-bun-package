@@ -21,7 +21,7 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-GnNmpiNhrGrHSnk9hYdL23ONalRFIEaJtbCIiphebak=";
   };
 
-  bunDepsHash = "sha256-yWLxPq4K937wHStCS0RsbLy1GveNhQ9+bzLf2VEyH/w=";
+  bunDepsHash = "sha256-CB9XSOGPryiHeYKwZA+lZ6e+UmgfgKGsjIUG0tgYg9Q=";
   runtime = nodejs-slim;
   bunBuildScript = "build:node";
 

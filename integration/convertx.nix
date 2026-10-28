@@ -42,8 +42,8 @@ buildBunPackage (finalAttrs: {
 
   bunDepsHash =
     {
-      "aarch64-linux" = "sha256-/w1GZJ+VTWGgiUtuJbZ17NXp9c8cH7cKtv8ALgDsaZ4=";
-      "x86_64-linux" = "sha256-8HB0IVRQOTp9ZJsjDbrMLuv7TkwdLUMz95psUb0lm/o=";
+      "aarch64-linux" = "sha256-T2DccygRF+6TSKP8EYo6942pcfCy+b1L0X090qTlPso=";
+      "x86_64-linux" = "sha256-aGmi3SP/ZayLg9H+DdB0425v1PnIHfVVmiL2pwU/cng=";
     }
     .${stdenv.hostPlatform.system};
   bunFetchFlags = [

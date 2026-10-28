@@ -18,7 +18,7 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-lV24rJwgmcTODyvb/qkpKWII4EhKd+xGrs1uwjuSVq4=";
   };
 
-  bunDepsHash = "sha256-eqt/OddO/yJvexnR6wesc1EZtvbOxXKp+xmpZgF79kQ=";
+  bunDepsHash = "sha256-rQ3zOA+uO3Pmt57gykYIff8yQcAaqbk+8eOCS8J5aK8=";
   makeWrapperArgs = [
     "--set"
     "NODE_ENV"

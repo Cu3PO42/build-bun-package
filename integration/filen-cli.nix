@@ -22,7 +22,7 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-2FN9KygSGir/vtHdKXX0zUeug2O6tgAc1PBhzD9HPqY=";
   };
 
-  bunDepsHash = "sha256-nvT50YsC+MLEkiraxtsRwmoPEkxoVLjqt0nM3WdLwFU=";
+  bunDepsHash = "sha256-YSqDs+K+/FTs8DkO66u9wZzbsApRq07r/L0DdNe8gZo=";
   # Filen patches two dependency packages; Bun materializes those patches in its cache.
   makeCacheWritable = true;
   bunFlags = [ "--no-progress" ];

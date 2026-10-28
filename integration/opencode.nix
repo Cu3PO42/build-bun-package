@@ -51,7 +51,7 @@ buildBunPackage (finalAttrs: {
         --replace-fail $'      ;\n  };\n  \n' $'     ;\n };\n \n'
     '';
 
-  bunDepsHash = "sha256-UwD/nWCZFMLP1QFTzJcpyFNjVu6WQYceEnvB9ys9W6g=";
+  bunDepsHash = "sha256-5FIVHR0rtQHpG5k4JO5YSUCbSHcbDGFrP5E/18EvEpo=";
   makeCacheWritable = true;
   bunInstallFlags = [
     "--filter"

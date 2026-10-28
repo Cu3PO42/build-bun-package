@@ -37,11 +37,12 @@ bunConfigHook() {
         echo 'bunConfigHook: bunDeps is required' >&2
         exit 1
     fi
-    if [[ ! -f "$bunDeps/.nix-bun/format-version" ]]; then
+    if [[ ! -f "$bunDeps/.nix-bun/format" || ! -f "$bunDeps/.nix-bun/format-version" ]]; then
         echo 'bunConfigHook: missing cache metadata; regenerate bunDepsHash with lib.fakeHash' >&2
         exit 1
     fi
-    if [[ $(cat "$bunDeps/.nix-bun/format-version") != "${bunDepsFormatVersion:-1}" ]]; then
+    if [[ $(cat "$bunDeps/.nix-bun/format") != "${bunDepsFormat:-extracted-cache}" ||
+    $(cat "$bunDeps/.nix-bun/format-version") != "${bunDepsFormatVersion:-1}" ]]; then
         echo 'bunConfigHook: incompatible or missing cache metadata; regenerate bunDepsHash with lib.fakeHash' >&2
         exit 1
     fi

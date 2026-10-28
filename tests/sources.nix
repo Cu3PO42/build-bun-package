@@ -4,7 +4,7 @@ let
     pname = "bun-duplicate-git";
     version = "1";
     src = ./fixtures/duplicate-git;
-    bunDepsHash = "sha256-pmMIv9yvR/9ZHUg70KFsled0t/KH5RIrj9ICG/gT2ak=";
+    bunDepsHash = "sha256-z6ciR2l6eszSgh1Oftb0UNFvbYhvf1oRvhGXgY6k+Zs=";
     bunDepsNativeBuildInputs = [ pkgs.git ];
     dontBunBuild = true;
     doInstallCheck = true;
@@ -18,7 +18,7 @@ let
     pname = "bun-foreign-optional";
     version = "1";
     src = ./fixtures/foreign-optional;
-    bunDepsHash = "sha256-jGdGNvnXNZdtYR55CYEZKhdz4Ss67l4je8+iziQ4tCg=";
+    bunDepsHash = "sha256-E4SL+3p8Q8jk4nItmdOw0kOtkf/P+j0JgcKjd+Pp6q8=";
     dontBunBuild = true;
     doInstallCheck = true;
     installCheckPhase = ''
@@ -33,7 +33,7 @@ let
     pname = "bun-local-dependencies";
     version = "1";
     src = ./fixtures/local-dependencies;
-    bunDepsHash = "sha256-G3ryLSIp40pH5iYxKIDRLnleyytn0BDsnRQKVos4wCU=";
+    bunDepsHash = "sha256-CFoqTbV62rDZ2n9rPakOWUYTCsbUfv3fSUgyCQ7esPE=";
     makeCacheWritable = true;
     dontBunBuild = true;
     doInstallCheck = true;
@@ -67,7 +67,7 @@ in
     pname = "bun-source-fixture";
     version = "1";
     src = ./fixtures/sources;
-    bunDepsHash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
+    bunDepsHash = "sha256-Am5rTbf5Utwntoin5iCkq6QcsXndS87uP3AivmKMl8o=";
     bunDepsNativeBuildInputs = [ pkgs.git ];
     dontBunBuild = true;
     installPhase = ''
@@ -81,7 +81,7 @@ in
     pname = "bun-bundled-and-unbundled";
     version = "1";
     src = ./fixtures/sources;
-    bunDepsHash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
+    bunDepsHash = "sha256-Am5rTbf5Utwntoin5iCkq6QcsXndS87uP3AivmKMl8o=";
     nativeBuildInputs = [ pkgs.jq ];
     bunDepsNativeBuildInputs = [
       pkgs.git
@@ -104,7 +104,7 @@ in
     pname = "bun-binary-lock";
     version = "1";
     src = ./fixtures/binary-lock;
-    bunDepsHash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
+    bunDepsHash = "sha256-QAf2z4p1EoJZmdajDQom1d+yIOQ4eZEWZT1/brQoU+I=";
     preBunInstall = ''
       stat -c %a bun.lockb > original-lock-mode
     '';
@@ -121,7 +121,7 @@ in
     pname = "bun-patched-dependency";
     version = "1";
     src = ./fixtures/patched;
-    bunDepsHash = "sha256-lT7chnHqWem8M+vLBqBTJLvbtpSoGs/D1KQMB1Zne3Y=";
+    bunDepsHash = "sha256-tJKoBbkhw00dCCd4VLl/Y2tiUq2+9JGOs5FORZjFKwc=";
     makeCacheWritable = true;
     doInstallCheck = true;
     installCheckPhase = ''grep -q 'patched by fixture' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js"'';

@@ -62,9 +62,10 @@ stdenvNoCC.mkDerivation (
           # the link, and -T prevents following it as a destination directory.
           ln -srfT "$target" "$link"
         done < <(find "$out" -type l -lname "$out/*" -print0)
-        # The offline install hook checks this format version and exact lockfile
+        # The offline install hook checks the format, version, and exact lockfile
         # snapshot before using the cache with a package's prepared source.
         mkdir -p "$out/.nix-bun"
+        printf 'extracted-cache\n' > "$out/.nix-bun/format"
         printf '1\n' > "$out/.nix-bun/format-version"
         cp "$lockfile" "$out/.nix-bun/$lockfile"
         runHook postInstall

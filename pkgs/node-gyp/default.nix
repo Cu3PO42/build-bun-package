@@ -11,7 +11,7 @@ buildBunPackage {
   inherit bun;
   inherit runtime;
   src = ./source;
-  bunDepsHash = "sha256-CB6mi3g6vG2m9Oxj41QMWxY9WMfywpKu9t9yZrJ/+S0=";
+  bunDepsHash = "sha256-4QskgdxeYqkRXvJ9GD3S0LqaSZDZXFk1l+L6Q/xb0u0=";
   dontBunBuild = true;
 
   # Match Nixpkgs' deterministic Xcode/CLT fallback.

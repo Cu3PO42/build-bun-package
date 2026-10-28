@@ -82,8 +82,11 @@ Fetching still covers the complete lockfile, so platform variants remain shared
 Nix fetcher inputs.
 
 `buildBunPackage` selects the import config hook automatically. Standalone users
-add `importBunLock.bunConfigHook` to `nativeBuildInputs`. The source bundle uses
-metadata format 2; `fetchBunDeps`' extracted cache continues to use format 1.
+add `importBunLock.bunConfigHook` to `nativeBuildInputs`. The metadata identifies
+the format as `source-bundle` for `importBunLock` and `extracted-cache` for
+`fetchBunDeps`. Both start at format version 1 and can evolve
+independently. The format and version are stored in `.nix-bun/format` and
+`.nix-bun/format-version`, respectively.
 The ordinary cache hook rejects source bundles supplied without the import hook.
 
 The shared config hook still validates the original lockfile byte for byte,

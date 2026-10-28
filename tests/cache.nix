@@ -60,6 +60,13 @@ in
         cp -R ${example.bunDeps} "$TMPDIR/cache"
         chmod -R u+w "$TMPDIR/cache"
         export bunDeps="$TMPDIR/cache" bunInstallFlags="--ignore-scripts"
+        rm "$bunDeps/.nix-bun/format"
+        (bunConfigHook) > "$TMPDIR/metadata.log" 2>&1 && exit 1
+        grep -q 'missing cache metadata' "$TMPDIR/metadata.log"
+        printf 'source-bundle\n' > "$bunDeps/.nix-bun/format"
+        (bunConfigHook) > "$TMPDIR/format.log" 2>&1 && exit 1
+        grep -q 'incompatible or missing cache metadata' "$TMPDIR/format.log"
+        printf 'extracted-cache\n' > "$bunDeps/.nix-bun/format"
         printf '2\n' > "$bunDeps/.nix-bun/format-version"
         (bunConfigHook) > "$TMPDIR/version.log" 2>&1 && exit 1
         grep -q 'incompatible or missing cache metadata' "$TMPDIR/version.log"
@@ -83,6 +90,7 @@ in
       '';
 
   cache-contract = pkgs.runCommand "bun-cache-contract" { } ''
+    test "$(cat ${example.bunDeps}/.nix-bun/format)" = extracted-cache
     test "$(cat ${example.bunDeps}/.nix-bun/format-version)" = 1
     cmp ${example.bunDeps}/.nix-bun/bun.lock ${./fixtures/basic/bun.lock}
     touch "$out"
@@ -158,20 +166,20 @@ in
   patched-dependency-cache = fetchForTest {
     name = "bun-patched-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/patched;
-    hash = "sha256-lT7chnHqWem8M+vLBqBTJLvbtpSoGs/D1KQMB1Zne3Y=";
+    hash = "sha256-tJKoBbkhw00dCCd4VLl/Y2tiUq2+9JGOs5FORZjFKwc=";
   };
 
   binary-dependency-cache = fetchForTest {
     name = "bun-binary-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/binary-lock;
-    hash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
+    hash = "sha256-QAf2z4p1EoJZmdajDQom1d+yIOQ4eZEWZT1/brQoU+I=";
   };
 
   source-dependency-cache = fetchForTest {
     name = "bun-source-deps-${pkgs.stdenv.hostPlatform.system}";
     src = ./fixtures/sources;
     nativeBuildInputs = [ pkgs.git ];
-    hash = "sha256-B+0r5+hD3LZfcm6pg6hMO+BREOCIRkPzokUqdoae6CU=";
+    hash = "sha256-Am5rTbf5Utwntoin5iCkq6QcsXndS87uP3AivmKMl8o=";
   };
 
   workspace-dependency-cache = fetchForTest {

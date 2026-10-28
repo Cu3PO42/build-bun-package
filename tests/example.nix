@@ -13,7 +13,7 @@ buildBunPackage {
   bunRoot = projectRoot;
   bunDeps = dependencyCache;
   inherit dontBunPrune;
-  bunDepsHash = "sha256-M+eG9pFxPpIfajcGBcnaPhOgtQxvYojWTsTExHVHo7c=";
+  bunDepsHash = "sha256-YrQSvNJOwqFiWwTGnX5yFvqkzKW4juqAYbAt1qbDpOk=";
   doCheck = true;
   checkPhase = ''
     pushd "${projectRoot}" >/dev/null

@@ -130,7 +130,8 @@ in
     };
   };
   import-lock-cache-contract = pkgs.runCommand "bun-import-lock-cache-contract" { } ''
-    test "$(cat ${basic.bunDeps}/.nix-bun/format-version)" = 2
+    test "$(cat ${basic.bunDeps}/.nix-bun/format)" = source-bundle
+    test "$(cat ${basic.bunDeps}/.nix-bun/format-version)" = 1
     cmp ${basic.bunDeps}/.nix-bun/bun.lock ${./fixtures/basic/bun.lock}
     test ! -e ${basic.bunDeps}/node_modules
     test -z "$(find ${basic.bunDeps} -maxdepth 1 -name '*.npm' -print)"
@@ -139,6 +140,25 @@ in
     test -z "$(find ${basic.bunDeps} -name package.json -print)"
     touch "$out"
   '';
+  import-lock-metadata-validation =
+    pkgs.runCommand "bun-import-lock-metadata-validation"
+      { nativeBuildInputs = [ pkgs.importBunLock.bunConfigHook ]; }
+      ''
+        cp -R ${./fixtures/basic} project
+        chmod -R u+w project
+        cd project
+        cp -R ${basic.bunDeps} "$TMPDIR/bundle"
+        chmod -R u+w "$TMPDIR/bundle"
+        export bunDeps="$TMPDIR/bundle"
+        printf 'extracted-cache\n' > "$bunDeps/.nix-bun/format"
+        (bunConfigHook) > "$TMPDIR/format.log" 2>&1 && exit 1
+        grep -q 'incompatible or missing cache metadata' "$TMPDIR/format.log"
+        printf 'source-bundle\n' > "$bunDeps/.nix-bun/format"
+        printf '2\n' > "$bunDeps/.nix-bun/format-version"
+        (bunConfigHook) > "$TMPDIR/version.log" 2>&1 && exit 1
+        grep -q 'incompatible or missing cache metadata' "$TMPDIR/version.log"
+        touch "$out"
+      '';
   import-lock-manifest-drift = pkgs.testers.testBuildFailure' {
     drv = basic.overrideAttrs (old: {
       nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];

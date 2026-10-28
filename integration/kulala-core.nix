@@ -19,7 +19,7 @@ buildBunPackage (finalAttrs: {
     hash = "sha256-rqfxp+i2o2DA8vle8yr+C6TzHcF2Q7kwYkW2VLMaKw0=";
   };
 
-  bunDepsHash = "sha256-45uy+nuF80xujf+PEdy0238Uc3zITP+vE9Io9pxZzeg=";
+  bunDepsHash = "sha256-6PXhJnQiAItVS7Lh3yLCzcgXbRoBvqHiAFYU60z5mTk=";
   # The upstream package builds only the core CLI entry point. Its root
   # `build` script also generates vendored curl/jq binaries for other targets.
   buildPhase = ''

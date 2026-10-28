@@ -4,7 +4,7 @@ let
     pname = "bun-patched-shebang";
     version = "1";
     src = ./fixtures/patched-shebang;
-    bunDepsHash = "sha256-FUFas7GOMdUkq9rF3JWS4NIdvDMTeLZNG1aBz/J1HhU=";
+    bunDepsHash = "sha256-DwgcZvc9sTHz6pqx6/4iGAl6ARH7TYMJoHNFbZQrKtg=";
     bunRunScripts = true;
     dontBunBuild = true;
     doInstallCheck = true;
@@ -175,7 +175,7 @@ in
     pname = "bun-trusted-lifecycle";
     version = "1";
     src = ./fixtures/trusted;
-    bunDepsHash = "sha256-yp69Jks7nsEvClpdP31p6UfQbxofhf/ASkSkckPjeyw=";
+    bunDepsHash = "sha256-c/tAgIcZjlyhDuUMXRHf1etYF9GmEEQiOPR/HdCEXOw=";
     bunRunScripts = true;
     doInstallCheck = true;
     installCheckPhase = ''test "$(grep -c 'trusted dependency script' "$out/lib/node_modules/bun-example/node_modules/is-odd/index.js")" -eq 1'';
@@ -185,7 +185,7 @@ in
     pname = "bun-lifecycle-disabled";
     version = "1";
     src = ./fixtures/trusted;
-    bunDepsHash = "sha256-yp69Jks7nsEvClpdP31p6UfQbxofhf/ASkSkckPjeyw=";
+    bunDepsHash = "sha256-c/tAgIcZjlyhDuUMXRHf1etYF9GmEEQiOPR/HdCEXOw=";
     nativeBuildInputs = [ pkgs.jq ];
     postPatch = ''
       jq '.scripts.postinstall = "touch root-script-ran"' package.json > package.json.new

@@ -10,7 +10,7 @@ let
       "--target=node"
       "--format=cjs"
     ];
-    bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
+    bunDepsHash = "sha256-TU9oKkzKK4Pq10Xfs0qljTGljgErGbewPjbGQSyZx/s=";
     preBuild = ''
       test "$(node -p process.execPath)" = "$(realpath '${pkgs.lib.getExe finalAttrs.buildRuntime}')"
       test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'

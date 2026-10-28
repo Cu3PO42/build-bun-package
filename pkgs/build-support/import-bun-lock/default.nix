@@ -179,7 +179,8 @@ let
         }
         ''
           mkdir -p "$out/.nix-bun" "$out/tarballs" "$out/checkouts"
-          printf '2\n' > "$out/.nix-bun/format-version"
+          printf 'source-bundle\n' > "$out/.nix-bun/format"
+          printf '1\n' > "$out/.nix-bun/format-version"
           cp ${lockFile} "$out/.nix-bun/bun.lock"
           cp ${manifest} "$out/sources.json"
           ${lib.concatMapStringsSep "\n" (

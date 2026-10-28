@@ -4,7 +4,8 @@
 
 # The propagated bunConfigHook owns installation, patching, and lifecycle scripts.
 # Replace only dependency preparation for the importer source-bundle interface.
-bunDepsFormatVersion=2
+bunDepsFormat=source-bundle
+bunDepsFormatVersion=1
 bunDependencySetupHook=bunSetupImportedDependencies
 bunSetupImportedDependencies() {
     export BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"

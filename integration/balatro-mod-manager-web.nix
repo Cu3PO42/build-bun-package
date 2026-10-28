@@ -21,9 +21,9 @@ buildBunPackage (finalAttrs: {
 
   bunDepsHash =
     {
-      "aarch64-darwin" = "sha256-8FjrpGYJJjJxipvrMGPEBv4QeS2jBnAweqn2E5vCfrs=";
-      "aarch64-linux" = "sha256-l3STunzD5Zzs1+QBAuGO+Jl73iCX8ty382Qn4gsWb7Q=";
-      "x86_64-linux" = "sha256-wyWcKsrYOuekpjwZCGeUizyJuVx/VZeOEtuExCNGdfc=";
+      "aarch64-darwin" = "sha256-GyQMh30hViIz/HkYG2nawnvqi7X1Y6iUWfIt61qZFBA=";
+      "aarch64-linux" = "sha256-lhehtsYyZB4MvskPHovGmoCXQHuDpjuHE8zgHVszqDo=";
+      "x86_64-linux" = "sha256-Xnd3srXf9xxIUadY+26ZBEOnG5POdzyBy9O+xiMDiaI=";
     }
     .${stdenv.hostPlatform.system};
   bunFetchFlags = [

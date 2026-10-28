@@ -4,7 +4,7 @@ let
     pname = "bun-catalog-example";
     version = "1";
     src = ./fixtures/catalogs;
-    bunDepsHash = "sha256-s318Wt8d+fBK6qijgUNG5sTN5LC0d9Cu6D5/ekVQFXg=";
+    bunDepsHash = "sha256-2dRgStX9kOP3v0lsCKLA7RC1S91pY0Iblap9HF61CY4=";
     bunWorkspace = "apps/cli";
     makeCacheWritable = true;
     doInstallCheck = true;
@@ -19,7 +19,7 @@ let
     pname = "bun-workspace-example";
     version = "1.0.0";
     src = ./fixtures/workspace;
-    bunDepsHash = "sha256-a/YgadTQr130SaPzXwbNMC2Eqwak0VRUboCi/OFcARY=";
+    bunDepsHash = "sha256-MlIxVmf8l7Q0D04G05n+dWyArU+CXYt/lkLFdbBnliM=";
     makeCacheWritable = true;
     bunFlags = [ "--silent" ];
     installPhase = ''
@@ -120,7 +120,7 @@ in
     pname = "bun-workspace-unbuilt-bin";
     version = "1";
     src = ./fixtures/workspace-bins;
-    bunDepsHash = "sha256-NyVRlJQTng259hC14hNoXFgIONeAayoC5sKYz7OKPzQ=";
+    bunDepsHash = "sha256-1Q3B1JXZyJd4Y+YFNsgz2Bs0VZrNGAoyLEEA62EnKks=";
     bunWorkspace = "apps/selected";
     makeCacheWritable = true;
     doInstallCheck = true;
