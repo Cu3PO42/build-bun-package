@@ -3,16 +3,16 @@
 <code>buildNpmPackage</code>, but for Bun!
 </p>
 
-![A bunny holding a package with a Nix logo on it.](./logo.png)
+<img src="./logo.png" alt="A bunny holding a package with a Nix logo on it." width=400>
 
 `buildBunPackage` allows easily packaging Bun applications and scripts for Nix while sticking as close to the familiar `buildNpmPackage` as reasonably possible.
 This implementation is enabled by new commands in [Bun 1.4.4](https://bun.com/blog/bun-v1.4.4#bun-pm-fetch).
 
 ## Status
 
-`buildBunPackage` is feature-complete and has been used to package real world applications.
+`buildBunPackage` is feature-complete and has been used to package real world applications with Bun's native lock files.
 You can probably use it for your package and encounter few issues.
-`importBunLock` is currently experimental; it also works in limited test settings, but I have much lower confidence in it.
+`importBunLock`, as well as support for other package managers' lock files in `fetchBunDeps` are currently experimental; it also works in limited test settings, but I have much lower confidence in it.
 
 The project as a whole is in early stages and the public interface is not yet finalized, so expect breaking changes for now when updating.
 
