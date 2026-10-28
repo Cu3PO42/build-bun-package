@@ -368,10 +368,12 @@ shows custom workspace filtering, dependency patches, and installation;
 [swagger-typescript-api](./integration/swagger-typescript-api.nix) uses the
 default build and install hooks.
 
-Run `nix fmt` to format the project's Nix files with nixfmt through treefmt.
-The shared configuration in [`treefmt.nix`](./treefmt.nix) excludes `integration/`
-from both formatting and formatting checks. Run `nix fmt -- --ci` to format and
-fail if any files change.
+Run `nix fmt` to format Nix with nixfmt, shell with shfmt, and
+JavaScript/TypeScript with Bun. JavaScript/TypeScript test fixtures are
+excluded to preserve their contents and hashes.
+The shared configuration in [`treefmt.nix`](./treefmt.nix) applies to both
+formatting and formatting checks. Run `nix fmt -- --ci` to format and fail if any
+files change.
 
 Run `nix flake check` on each supported system. `nix flake check --all-systems`
 evaluates other systems but does not build their checks on the current host.

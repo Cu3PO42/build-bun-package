@@ -3,7 +3,12 @@ let
   src = pkgs.lib.cleanSource ../.;
 in
 {
-  formatting = (pkgs.treefmt.withConfig ../treefmt.nix).check src;
+  formatting =
+    (pkgs.treefmt.withConfig {
+      imports = [ ../treefmt.nix ];
+      _module.args.bun = pkgs.bun;
+    }).check
+      src;
 
   shellcheck = pkgs.runCommand "nix-bun-shellcheck" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
     cd ${src}
