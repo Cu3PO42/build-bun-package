@@ -2,4 +2,11 @@
 {
   system ? builtins.currentSystem,
 }:
-(builtins.getFlake (toString ./.)).legacyPackages.${system}
+let
+  flake = builtins.getFlake (toString ./.);
+in
+flake.legacyPackages.${system}
+// {
+  # Let maintenance tools map flake source positions back to this checkout.
+  inherit (flake) outPath;
+}

@@ -429,9 +429,15 @@ To update Bun and matching headers, run from the repository root:
 $(nix-build --no-out-link -A bun.updateScript)
 ```
 
-Pass a Bun version as an argument to select a release. The updater checks headers
-even when Bun is already current; `bunNodeHeaders.updateScript` uses the same
-updater. To update standalone node-gyp, change its dependency in
+This runs Nixpkgs' Bun updater to select the latest stable release, then updates
+the matching headers even when Bun is already current. To update only the
+headers for the currently selected Bun, run:
+
+```sh
+$(nix-build --no-out-link -A bunNodeHeaders.updateScript)
+```
+
+To update standalone node-gyp, change its dependency in
 [`pkgs/node-gyp/source/package.json`](./pkgs/node-gyp/source/package.json),
 regenerate the adjacent lockfile with Bun, and recalculate its `bunDepsHash`.
 

@@ -79,7 +79,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         hash = "sha256-4ERutVmVdy65iUvrrppr42jZhai5Jx7hJEhvmUbu3XY=";
       };
     };
-    updateScript = callPackage ./update.nix { };
+    updateScript = callPackage ./update.nix { inherit (finalAttrs) version; };
     tests.node-headers = runCommand "bun-node-headers-version" { } ''
       actual=$(${lib.getExe finalAttrs.finalPackage} -p process.versions.node)
       expected=${lib.escapeShellArg bunNodeHeaders.version}
