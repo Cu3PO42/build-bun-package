@@ -105,6 +105,10 @@ in
     version = "1";
     src = ./fixtures/binary-lock;
     bunDepsHash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
+    postBunInstall = ''
+      cmp bun.lockb "$bunDeps/.nix-bun/bun.lockb"
+      test -x bun.lockb
+    '';
     doInstallCheck = true;
     installCheckPhase = ''test "$("$out/bin/bun-example" 3)" = odd'';
   };

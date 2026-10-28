@@ -2,6 +2,19 @@
 # stdenv enables errexit, so failed directory changes abort the build.
 # shellcheck disable=SC2164
 
+bunPatchShebangs() {
+    # Binary lockfiles have an executable shebang but fixed binary offsets;
+    # rewriting that line corrupts them. Batch paths to stay below ARG_MAX.
+    local -a scripts=()
+    while (( $# )); do
+        while mapfile -d '' -n 32 -t scripts && (( ${#scripts[@]} )); do
+            patchShebangs "${scripts[@]}"
+        done < <(find "${@:1:32}" -type f -perm -0100 ! -name bun.lockb -print0)
+        if (( $# <= 32 )); then break; fi
+        shift 32
+    done
+}
+
 bunPatchElf() {
     # Reuse the caller's autoPatchelfHook and its library/search-path settings.
     if [[ -z ${dontAutoPatchelf-} ]] && declare -F autoPatchelf >/dev/null; then
@@ -64,7 +77,7 @@ bunConfigHook() {
 
     # Project helpers and linked local/workspace packages can execute during
     # installation, before stdenv's final output shebang fixup.
-    patchShebangs .
+    bunPatchShebangs .
 
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
@@ -93,7 +106,7 @@ bunConfigHook() {
             fi
         done < <(find . -path '*/node_modules/*' -type l -name package.json -print0)
         if (( ${#preparedCachePackages[@]} )); then
-            patchShebangs "${preparedCachePackages[@]}"
+            bunPatchShebangs "${preparedCachePackages[@]}"
         fi
         # Only selected packages are prepared, leaving foreign OS/CPU/libc
         # variants in the all-platform cache untouched.
@@ -112,7 +125,7 @@ bunConfigHook() {
 
     if [[ -d node_modules ]]; then
         chmod -R u+w node_modules
-        patchShebangs node_modules
+        bunPatchShebangs node_modules
     fi
 
     # Also prepare ordinary script-free installs and newly generated binaries

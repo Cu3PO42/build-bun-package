@@ -449,6 +449,8 @@ separate Bun installs.
 Executable project files are also patched before installation, including
 workspace and local `file:` dependency helpers. This happens after
 `preBunInstall`, so helpers created by that hook are covered too.
+Executable `bun.lockb` files are excluded: changing their shebang would corrupt
+the binary lockfile's offsets.
 Custom cache edits in `preBunInstall` can still interfere with dependency
 patches that expect original file contents.
 
