@@ -8,6 +8,10 @@ let
   overlaid = import self.inputs.nixpkgs {
     system = pkgs.stdenv.hostPlatform.system;
     overlays = [ self.overlays.default ];
+    config = {
+      allowAliases = false;
+      checkMeta = true;
+    };
   };
   overlayPackage = overlaid.buildBunPackage {
     pname = "bun-overlay-example";
