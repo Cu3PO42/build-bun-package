@@ -1,0 +1,20 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "local-dependencies",
+      "dependencies": {
+        "first": "file:./first",
+        "local": "link:./local",
+      },
+    },
+  },
+  "packages": {
+    "first": ["first@file:first", { "dependencies": { "second": "file:../second" } }],
+
+    "local": ["local@link:./local", {}],
+
+    "first/second": ["second@file:second", {}],
+  }
+}

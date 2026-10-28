@@ -1,0 +1,10 @@
+{
+  "name": "selected",
+  "version": "1.0.0",
+  "bin": { "selected-workspace": "dist/cli.js" },
+  "files": ["dist"],
+  "dependencies": { "unbuilt": "workspace:*" },
+  "scripts": {
+    "build": "bun build ./cli.js --target=bun --external=unbuilt --outdir=dist"
+  }
+}

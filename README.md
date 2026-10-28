@@ -445,10 +445,12 @@ pruning, and installed runtime behavior. Fresh-fetch checks use
 reusing a cached fixed-output result.
 
 Source coverage includes text/JSONC and binary lockfiles, catalogs, duplicate
-Git aliases, foreign optional dependencies, a public GitHub dependency, an HTTP
-tarball, and a non-default registry. The authenticated mock registry checks
-credential rejection, token leakage, and offline installation after removing
-credentials and stopping the server. It does not configure daemon credentials.
+Git aliases, local `file:` and `link:` dependencies, foreign optional dependencies,
+a public GitHub dependency, an HTTP tarball, and a non-default registry. Workspace
+checks also cover consuming a sibling whose CLI has not been built. The
+authenticated mock registry checks credential rejection, token leakage, and offline
+installation after removing credentials and stopping the server. It does not
+configure daemon credentials.
 Other Git protocols and private Git authentication remain untested.
 
 For upstream context, see the

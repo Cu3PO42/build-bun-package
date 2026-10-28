@@ -1,0 +1,7 @@
+{
+  "name": "unbuilt",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": { "unbuilt-workspace": "dist/cli.js" },
+  "files": ["index.js"]
+}

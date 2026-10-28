@@ -1,0 +1,10 @@
+{
+  "name": "local-dependencies",
+  "version": "1.0.0",
+  "bin": { "local-dependencies": "cli.js" },
+  "files": ["cli.js"],
+  "dependencies": {
+    "first": "file:./first",
+    "local": "link:./local"
+  }
+}

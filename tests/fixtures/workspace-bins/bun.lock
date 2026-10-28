@@ -1,0 +1,34 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "workspace-bins",
+      "dependencies": {
+        "selected": "workspace:*",
+      },
+    },
+    "apps/selected": {
+      "name": "selected",
+      "version": "1.0.0",
+      "bin": {
+        "selected-workspace": "dist/cli.js",
+      },
+      "dependencies": {
+        "unbuilt": "workspace:*",
+      },
+    },
+    "apps/unbuilt": {
+      "name": "unbuilt",
+      "version": "1.0.0",
+      "bin": {
+        "unbuilt-workspace": "dist/cli.js",
+      },
+    },
+  },
+  "packages": {
+    "selected": ["selected@workspace:apps/selected"],
+
+    "unbuilt": ["unbuilt@workspace:apps/unbuilt"],
+  }
+}

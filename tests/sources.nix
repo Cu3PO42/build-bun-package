@@ -28,10 +28,40 @@ let
       test ! -e "$out/lib/node_modules/foreign-optional/node_modules/@esbuild/win32-x64"
     '';
   };
+
+  localDependencies = pkgs.buildBunPackage {
+    pname = "bun-local-dependencies";
+    version = "1";
+    src = ./fixtures/local-dependencies;
+    bunDepsHash = "sha256-G3ryLSIp40pH5iYxKIDRLnleyytn0BDsnRQKVos4wCU=";
+    makeCacheWritable = true;
+    dontBunBuild = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+      packageOut="$out/lib/node_modules/local-dependencies"
+      # The root's publish list excludes these sources. Local packages must
+      # survive through the installed dependency tree and linked-package packing.
+      test ! -e "$packageOut/first"
+      test ! -e "$packageOut/second"
+      test -f "$packageOut/local/index.js"
+      test ! -e "$packageOut/local/unpublished.txt"
+      cd "$TMPDIR"
+      rm -rf "$NIX_BUILD_TOP/local-dependencies"
+      test "$("$out/bin/local-dependencies")" = 'local dependencies work'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+      runHook postInstallCheck
+    '';
+  };
 in
 {
   duplicate-git = duplicateGit;
   foreign-optional = foreignOptional;
+
+  local-dependencies = localDependencies;
+  local-dependencies-isolated = localDependencies.overrideAttrs (_: {
+    bunInstallFlags = [ "--linker=isolated" ];
+  });
 
   git-tarball-registry = pkgs.buildBunPackage {
     pname = "bun-source-fixture";

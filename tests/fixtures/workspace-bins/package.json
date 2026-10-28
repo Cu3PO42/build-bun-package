@@ -1,0 +1,6 @@
+{
+  "name": "workspace-bins",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "dependencies": { "selected": "workspace:*" }
+}

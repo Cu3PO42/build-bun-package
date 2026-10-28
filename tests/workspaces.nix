@@ -78,4 +78,26 @@ in
       while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
     '';
   };
+
+  workspace-unbuilt-bin = pkgs.buildBunPackage {
+    pname = "bun-workspace-unbuilt-bin";
+    version = "1";
+    src = ./fixtures/workspace-bins;
+    bunDepsHash = "sha256-NyVRlJQTng259hC14hNoXFgIONeAayoC5sKYz7OKPzQ=";
+    bunWorkspace = "apps/selected";
+    makeCacheWritable = true;
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+      # Only the selected workspace was built; its dependency also declares a
+      # CLI whose absent build output must not prevent library consumption.
+      test ! -e apps/unbuilt/dist
+      test ! -e "$out/bin/unbuilt-workspace"
+      cd "$TMPDIR"
+      rm -rf "$NIX_BUILD_TOP/workspace-bins"
+      test "$("$out/bin/selected-workspace")" = 'workspace bins work'
+      while IFS= read -r -d "" link; do test -e "$link"; done < <(find "$out" -type l -print0)
+      runHook postInstallCheck
+    '';
+  };
 }
