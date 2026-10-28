@@ -38,7 +38,9 @@
           }
         )
       );
-      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+      formatter = forAllSystems (
+        system: nixpkgs.legacyPackages.${system}.treefmt.withConfig ./treefmt.nix
+      );
       checks = forAllSystems (
         system:
         (import ./tests {
