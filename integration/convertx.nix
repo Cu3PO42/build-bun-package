@@ -69,7 +69,7 @@ buildBunPackage (finalAttrs: {
     tailwindcss -i ./src/main.css -o ./public/generated.css
     tsc
     substituteInPlace ./dist/src/index.js \
-      --replace-fail 'assets: "public"' 'assets: "$out/share/convertx/dist/public"'
+      --replace-fail 'assets: "public"' "assets: \"$out/share/convertx/dist/public\""
 
     runHook postBuild
   '';
