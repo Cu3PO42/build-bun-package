@@ -2,7 +2,7 @@
 
 bunCheckHook() {
     echo "Executing bunCheckHook"
-    pushd "${bunRoot:-.}/${bunWorkspace:-.}" >/dev/null
+    pushd "${bunRoot:-.}/${bunWorkspace:-.}" >/dev/null || return
 
     runHook preCheck
 
@@ -17,7 +17,7 @@ bunCheckHook() {
 
     runHook postCheck
 
-    popd >/dev/null
+    popd >/dev/null || return
     echo "Finished bunCheckHook"
 }
 
