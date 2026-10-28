@@ -105,9 +105,22 @@ in
     version = "1";
     src = ./fixtures/binary-lock;
     bunDepsHash = "sha256-0IQeLWkQYpK0HHHblh/E1r4iEfC4ATzQUEUYLauR5U4=";
+    preBunInstall = ''
+      stat -c %a bun.lockb > original-lock-mode
+      mkdir -p 'lockfiles with spaces/executable' 'lockfiles with spaces/nonexecutable'
+      cp bun.lockb 'lockfiles with spaces/executable/bun.lockb'
+      cp bun.lockb 'lockfiles with spaces/nonexecutable/bun.lockb'
+      chmod 751 'lockfiles with spaces/executable/bun.lockb'
+      chmod 640 'lockfiles with spaces/nonexecutable/bun.lockb'
+    '';
     postBunInstall = ''
       cmp bun.lockb "$bunDeps/.nix-bun/bun.lockb"
       test -x bun.lockb
+      test "$(stat -c %a bun.lockb)" = "$(cat original-lock-mode)"
+      cmp bun.lockb 'lockfiles with spaces/executable/bun.lockb'
+      cmp bun.lockb 'lockfiles with spaces/nonexecutable/bun.lockb'
+      test "$(stat -c %a 'lockfiles with spaces/executable/bun.lockb')" = 751
+      test "$(stat -c %a 'lockfiles with spaces/nonexecutable/bun.lockb')" = 640
     '';
     doInstallCheck = true;
     installCheckPhase = ''test "$("$out/bin/bun-example" 3)" = odd'';

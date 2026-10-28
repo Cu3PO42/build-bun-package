@@ -4,17 +4,20 @@
 
 bunPatchShebangs() {
     # Binary lockfiles have an executable shebang but fixed binary offsets;
-    # rewriting that line corrupts them. Batch paths to stay below ARG_MAX.
-    local -a scripts=()
-    # Process up to 32 search roots per find invocation. Positional arguments
-    # remain separate paths, including any spaces, through "${@:1:32}".
+    # temporarily clear their owner-execute bit so patchShebangs skips them.
+    local lockfile
+    local -a lockfiles=()
+    # Batch search roots to keep find's arguments below ARG_MAX.
     while (($#)); do
-        # Read at most 32 NUL-delimited paths at a time. mapfile clears scripts
-        # on each read and can succeed at EOF, so also check the array length.
-        while mapfile -d '' -n 32 -t scripts && ((${#scripts[@]})); do
-            patchShebangs "${scripts[@]}"
-        done < <(find "${@:1:32}" -type f -perm -0100 ! -name bun.lockb -print0)
-        # Process substitution feeds the inner loop without a pipeline subshell.
+        lockfiles=()
+        while IFS= read -r -d "" lockfile; do
+            chmod u-x "$lockfile"
+            lockfiles+=("$lockfile")
+        done < <(find "${@:1:32}" -type f -name bun.lockb -perm -0100 -print0)
+        patchShebangs "${@:1:32}"
+        for lockfile in "${lockfiles[@]}"; do
+            chmod u+x "$lockfile"
+        done
         if (($# <= 32)); then break; fi
         shift 32
     done
