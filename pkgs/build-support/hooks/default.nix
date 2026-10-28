@@ -28,6 +28,14 @@ let
     propagatedBuildInputs = [ bun ];
     substitutions = { inherit bunNodeShim; };
   } ./bun-node-fallback-hook.sh;
+  bunConfigHook = makeSetupHook {
+    name = "bun-config-hook";
+    propagatedBuildInputs = [
+      bun
+      bunNodeFallbackHook
+    ];
+    meta.license = lib.licenses.mit;
+  } ./bun-config-hook.sh;
 in
 {
   inherit bunNodeShim bunNodeFallbackHook;
@@ -47,14 +55,13 @@ in
     };
     meta.license = lib.licenses.mit;
   } ./bun-node-gyp-hook.sh;
-  bunConfigHook = makeSetupHook {
-    name = "bun-config-hook";
-    propagatedBuildInputs = [
-      bun
-      bunNodeFallbackHook
-    ];
+  inherit bunConfigHook;
+  bunImportConfigHook = makeSetupHook {
+    name = "bun-import-config-hook";
+    propagatedBuildInputs = [ bunConfigHook ];
+    substitutions.rewriteLock = ../import-bun-lock/rewrite-lock.ts;
     meta.license = lib.licenses.mit;
-  } ./bun-config-hook.sh;
+  } ./bun-import-config-hook.sh;
   bunBuildHook = makeSetupHook {
     name = "bun-build-hook";
     propagatedBuildInputs = [

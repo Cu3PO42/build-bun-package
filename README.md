@@ -103,18 +103,24 @@ nix-bun.buildBunPackage.${system} {
 }
 ```
 
-With the overlay, use `pkgs.importBunLock`. It returns the same dependency-cache
-interface as `fetchBunDeps`, so the default hooks work without overrides.
+With the overlay, use `pkgs.importBunLock`. It returns a bundle of fetched
+archives rather than an extracted Bun cache. `buildBunPackage` selects its config
+hook automatically. With `stdenv.mkDerivation`, add
+`importBunLock.bunConfigHook` to `nativeBuildInputs` instead of the cache hook.
+The hook validates the original lockfile, redirects fetched resolutions to local
+archives, and installs with `--offline --frozen-lockfile`. The locked dependency
+graph, manifest version constraints, platform metadata, and trust list stay in
+place. Patch keys in the lockfile and root manifest follow the new resolutions.
+
 There is no aggregate hash to recalculate when dependencies change, and Nix can
 reuse individual tarballs. Lockfile parsing uses pure Nix and needs no import
-from derivation. The source directory and text lockfile must be available during
-evaluation; reading them from an unbuilt derivation would require IFD.
+from derivation. The text lockfile must be available during evaluation; reading
+it from an unbuilt derivation would require IFD.
 
 Supported sources are integrity-pinned npm registry packages and HTTP(S)
 tarballs, plus workspaces and local `file:`/`link:` directories. Registry aliases,
-prereleases, catalogs, and dependency patches are supported. As with the other
-provider, local packages, workspace bins, or dependency patches can require
-`makeCacheWritable = true`. Git dependencies, local tarballs, binary `bun.lockb`,
+prereleases, catalogs, and dependency patches are supported. The importer always uses a private writable cache; `makeCacheWritable` is
+unnecessary. Git dependencies, local tarballs, binary `bun.lockb`,
 and remote packages without supported integrity hashes are rejected. Use
 `fetchBunDeps` for those projects. Convert binary locks with
 `bun install --save-text-lockfile --frozen-lockfile --lockfile-only` first if desired.
@@ -123,10 +129,10 @@ The importer accepts these arguments:
 
 | Argument | Default | Purpose |
 | --- | --- | --- |
-| `src` | required | Source directory available during evaluation |
+| `src` | required | Source directory; used to locate the default lockfile |
 | `bunRoot` | `"."` | Project directory relative to `src`, matching the builder's `bunRoot` |
 | `lockFile` | `src + "/${bunRoot}/bun.lock"` | Text lockfile to import; must match the package build's lockfile byte for byte |
-| `name` | `"imported-bun-deps"` | Cache derivation name |
+| `name` | `"imported-bun-deps"` | Source-bundle derivation name |
 | `registry` | `"https://registry.npmjs.org"` | Registry for packages whose lockfile URL is empty |
 | `scopedRegistries` | `{}` | Registry URLs keyed by scope, e.g. `"@myorg"` |
 | `fetcherOpts` | `{}` | Per-package `fetchurl` overrides, keyed by the exact key in `bun.lock`'s `packages` object |
@@ -134,7 +140,7 @@ The importer accepts these arguments:
 Explicit tarball URLs in the lockfile take precedence over registry defaults.
 For an empty URL, set `registry`/`scopedRegistries` to match upstream's registry
 configuration. These arguments control Nix fetching; keep the project's
-`.npmrc`/`bunfig.toml` for Bun's cache assembly and offline installation too.
+`.npmrc`/`bunfig.toml` for offline installation too.
 `importBunLock` does not translate Bun's registry authentication to `fetchurl`.
 Use `fetcherOpts` for Nix fetcher configuration, for example:
 
@@ -484,14 +490,22 @@ updating the format marker and expected hashes.
 Fetching covers all platforms in the lockfile, while offline installation
 selects the build host's dependencies. This lets workspaces and platforms share
 a cache, but can be expensive: workspace selection and install filters do not
-reduce downloads. `importBunLock` parses JSONC during evaluation and fetches
-individual integrity-pinned tarballs. A sandboxed, ordinary derivation serves
-these store paths over loopback to `bun pm fetch`, which owns cache naming and
-extraction. Only the temporary lockfile's download locations change; the cache
-metadata records the original lockfile for the package's offline installation.
-Darwin permits loopback networking for this assembler through
-`__darwinAllowLocalNetworking`; it remains an ordinary derivation with no
-external network access in the sandbox.
+reduce downloads. `importBunLock` also fetches the complete locked archive set,
+but extracts only packages selected by installation on the build host. Its
+source bundle contains archive links and original-lockfile metadata, without
+Bun, a source-tree copy, or an extraction step. The config hook changes fetched
+resolutions into local tarballs in the build tree, and Bun installs them directly
+into a private cache and `node_modules`. It needs neither a loopback server nor
+Darwin networking permissions. The existing hooks still own lifecycle
+preparation, patching, linking, and pruning.
+
+The rewritten build-tree lockfile and patch keys contain store paths. They are
+kept through build and prune so later Bun commands see consistent resolutions;
+package manifests retain their original dependency constraints. A package that
+explicitly publishes its lockfile or patched-dependency metadata can therefore
+retain archive store references. Use `fetchBunDeps` when the original source
+identities must be preserved. `preBunInstall` runs before importer archives are
+extracted, so it can prepare project files but cannot assume a populated cache.
 
 The fetcher's source-preparation allowlist prevents package phases and setup
 hooks from running during fetching or introducing dependency cycles.

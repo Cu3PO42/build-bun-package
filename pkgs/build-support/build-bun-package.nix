@@ -51,7 +51,13 @@ lib.extendMkDerivation {
         bunRuntime = finalAttrs.bunRuntime;
       };
       hook =
-        name: if (finalAttrs.${name} or null) != null then finalAttrs.${name} else selectedHooks.${name};
+        name:
+        if (finalAttrs.${name} or null) != null then
+          finalAttrs.${name}
+        else if name == "bunConfigHook" && (finalAttrs.bunDeps.isBunSourceBundle or false) then
+          selectedHooks.bunImportConfigHook
+        else
+          selectedHooks.${name};
       # Forward only source preparation, never package phases, hooks or inputs.
       # Read finalAttrs so overrideAttrs also changes the dependency fetch.
       preparation = builtins.intersectAttrs (lib.genAttrs [

@@ -35,6 +35,7 @@ assert self.bunNodeHeaders.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeHe
 assert scope.buildBunPackage ? override;
 assert scope.fetchBunDeps ? override;
 assert scope.importBunLock ? override;
+assert scope.importBunLock.bunConfigHook == scope.bunHooks.bunImportConfigHook;
 assert extended.bun == pkgs.bun;
 assert overlaid.bun.drvPath == expectedBun.drvPath;
 assert overlayPackage.bun.drvPath == overlaid.bun.drvPath;

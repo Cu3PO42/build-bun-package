@@ -30,6 +30,15 @@ bunFixupElf() {
     fi
 }
 
+bunSetupDependencyCache() {
+    export BUN_INSTALL_CACHE_DIR="$bunDeps"
+    if [[ -n ${makeCacheWritable-} || -n ${bunRunScripts-} ]]; then
+        BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"
+        cp -R "$bunDeps" "$BUN_INSTALL_CACHE_DIR"
+        chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
+    fi
+}
+
 bunConfigHook() {
     echo "Executing bunConfigHook"
     pushd "${bunRoot:-.}" >/dev/null
@@ -42,7 +51,7 @@ bunConfigHook() {
         echo 'bunConfigHook: missing cache metadata; regenerate bunDepsHash with lib.fakeHash' >&2
         exit 1
     fi
-    if [[ $(cat "$bunDeps/.nix-bun/format-version") != 1 ]]; then
+    if [[ $(cat "$bunDeps/.nix-bun/format-version") != "${bunDepsFormatVersion:-1}" ]]; then
         echo 'bunConfigHook: incompatible or missing cache metadata; regenerate bunDepsHash with lib.fakeHash' >&2
         exit 1
     fi
@@ -66,12 +75,7 @@ bunConfigHook() {
     export BUN_INSTALL_GLOBAL_STORE=0
     mkdir -p "$HOME"
     # Lifecycle preparation and other cache mutations need a private copy.
-    export BUN_INSTALL_CACHE_DIR="$bunDeps"
-    if [[ -n ${makeCacheWritable-} || -n ${bunRunScripts-} ]]; then
-        BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-cache"
-        cp -R "$bunDeps" "$BUN_INSTALL_CACHE_DIR"
-        chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
-    fi
+    "${bunDependencySetupHook:-bunSetupDependencyCache}"
 
     runHook preBunInstall
 
