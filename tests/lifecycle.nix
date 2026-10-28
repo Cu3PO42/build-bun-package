@@ -47,6 +47,41 @@ in
 
   inherit lifecycle-shebangs;
 
+  source-shebangs = example.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+    bunDeps = example.bunDeps;
+    bunRunScripts = true;
+    postPatch = ''
+      jq '.scripts.postinstall = "./root-helper" | .scripts.build = "./build-helper"' package.json > package.json.new
+      mv package.json.new package.json
+      # These represent project, workspace, and linked local-package helpers.
+      # All must be usable before the final output fixup phase.
+      mkdir -p packages/workspace local
+      for helper in root-helper packages/workspace/helper local/helper; do
+        cat > "$helper" <<'SH'
+      #!/missing/interpreter/bash
+      printf 'ran\n' >> source-helpers-ran
+      SH
+        chmod +x "$helper"
+      done
+      cat >> root-helper <<'SH'
+      ./packages/workspace/helper
+      ./local/helper
+      SH
+      cat > build-helper <<'SH'
+      #!/missing/interpreter/bash
+      test "$(wc -l < source-helpers-ran)" -eq 3
+      bun build ./cli.js --target=bun --external=is-odd --outdir=dist
+      SH
+      chmod +x build-helper
+    '';
+    preBunInstall = ''
+      cp local/helper hook-helper
+      printf '\n./hook-helper\n' >> build-helper
+    '';
+    postBuild = ''test "$(wc -l < source-helpers-ran)" -eq 4'';
+  });
+
   lifecycle-node-shebangs = lifecycle-shebangs.overrideAttrs (_: {
     nodejs = pkgs.nodejs;
     __structuredAttrs = true;

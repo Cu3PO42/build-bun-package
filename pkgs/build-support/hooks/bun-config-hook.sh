@@ -47,6 +47,10 @@ bunConfigHook() {
 
     runHook preBunInstall
 
+    # Project helpers and linked local/workspace packages can execute during
+    # installation, before stdenv's final output shebang fixup.
+    patchShebangs .
+
     local -a installFlags=()
     concatTo installFlags bunFlags bunFlagsArray bunInstallFlags bunInstallFlagsArray
     if [[ -n ${bunRunScripts-} ]]; then

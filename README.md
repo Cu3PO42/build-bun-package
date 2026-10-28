@@ -15,6 +15,7 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 - Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
   There is no equivalent to `npmRebuildFlags` since a similar command does not exist for Bun and we work around shebang issues seperately.
 - By default, Bun is used to execute any scripts. If you want to keep Node.js, add it as a `nativeBuildInput`.
+- Executable project files, including local and workspace helpers, have their shebangs patched before installation.
 - The default install phase creates executable wrappers using Bun. Set `bunRuntime = pkgs.nodejs;` to use Node.js instead.
 - Workspace selection uses a directory instead of a package name: `bunWorkspace` is relative to `bunRoot`, i.e. the folder in which the lockfile is located.
   Each Bun hook enters its required directory and restores the previous working directory, so custom phases must enter `bunRoot` themselves when needed.
@@ -406,10 +407,11 @@ this copy so dependency shebangs can be patched before scripts execute;
 `preBunInstall` runs before that patching. Setting `makeCacheWritable` alone
 leaves scripts disabled.
 
-That preparation covers fetched dependencies. Project, workspace, and local
-`file:` dependency scripts live in the source tree; patch their shebangs in
-`postPatch` if needed. Cache edits can also interfere with dependency patches
-that expect original file contents.
+Executable project files are also patched before installation, including
+workspace and local `file:` dependency helpers. This happens after
+`preBunInstall`, so helpers created by that hook are covered too.
+Cache edits can interfere with dependency patches that expect original file
+contents.
 
 Build with Nix sandboxing enabled to enforce network isolation for arbitrary
 lifecycle and build scripts. Bun's `--offline` applies to package installation;
