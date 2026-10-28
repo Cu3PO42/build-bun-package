@@ -261,6 +261,22 @@ default build and install hooks.
 
 Run `nix flake check` on each supported system. `nix flake check --all-systems`
 evaluates other systems but does not build their checks on the current host.
+The checks include Nix formatting, ShellCheck, and GitHub Actions validation with
+actionlint. Integration code is excluded from formatting checks. To run only
+these checks, substitute your system in:
+
+```sh
+nix build --no-link .#checks.x86_64-linux.formatting \
+  .#checks.x86_64-linux.shellcheck .#checks.x86_64-linux.actionlint
+```
+
+GitHub Actions runs the checks on `x86_64-linux` for pull requests and pushes to
+`master`. Use **Actions → CI → Run workflow** to enable `all-platforms` for native
+`aarch64-linux` and `aarch64-darwin` runners, or `integration` for the real-world
+package builds. Integration builds run separately for each package and platform
+after the checks pass; Linux-only examples are skipped on Darwin. Nix build
+results are cached through GitHub Actions without additional cache credentials.
+
 To build all checks through configured remote builders:
 
 ```sh

@@ -14,4 +14,18 @@ in
     find . -type f -name '*.sh' -exec shellcheck {} +
     touch "$out"
   '';
+
+  actionlint =
+    pkgs.runCommand "nix-bun-actionlint"
+      {
+        nativeBuildInputs = [
+          pkgs.actionlint
+          pkgs.shellcheck
+        ];
+      }
+      ''
+        cd ${src}
+        actionlint .github/workflows/*.yml
+        touch "$out"
+      '';
 }
