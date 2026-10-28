@@ -19,6 +19,7 @@ in
 // import ./evaluation.nix { inherit pkgs example; }
 // import ./lint.nix { inherit pkgs; }
 // import ./migration.nix { inherit pkgs; }
+// import ./migration-real.nix { inherit pkgs; }
 // import ./import-lock.nix {
   inherit
     pkgs

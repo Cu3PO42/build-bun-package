@@ -712,6 +712,13 @@ pruning, and installed runtime behavior. Fresh-fetch checks use
 `testers.invalidateFetcherByDrvHash` so changed fetcher inputs cannot pass by
 reusing a cached fixed-output result.
 
+`migration-real-*` checks use complete npm, npm shrinkwrap, pnpm, Yarn Classic,
+and Yarn Berry dependency snapshots from real projects, including nixpkgs
+packages. They verify offline installation, nested version resolution, optional
+dependencies, executable links, and module behavior. Their combined dependency
+caches are limited to 32 MiB.
+See the [fixture provenance and update notes](./tests/fixtures/migration-real/README.md).
+
 Source coverage includes text/JSONC and binary lockfiles, catalogs, duplicate
 Git aliases, local `file:` and `link:` dependencies, foreign optional dependencies,
 a public GitHub dependency, an HTTP tarball, and a non-default registry. Workspace
