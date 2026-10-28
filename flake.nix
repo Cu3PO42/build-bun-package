@@ -12,6 +12,7 @@
         "x86_64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+      pkgsFor = forAllSystems (system: nixpkgs.legacyPackages.${system}.extend self.overlays.default);
     in
     {
       overlays.default =
@@ -25,80 +26,58 @@
           bun =
             if nixpkgs.lib.versionOlder prev.bun.version packages.bun.version then packages.bun else prev.bun;
         };
-      legacyPackages = forAllSystems (
-        system:
-        let
-          pkgs = import nixpkgs { inherit system; };
-        in
-        nixpkgs.lib.makeScope pkgs.newScope (
-          scope:
-          import ./pkgs {
-            inherit (scope) callPackage;
-          }
-        )
-      );
+      legacyPackages = forAllSystems (system: {
+        inherit (pkgsFor.${system})
+          bun
+          buildBunPackage
+          fetchBunDeps
+          importBunLock
+          bunHooks
+          bunNodeGyp
+          bunNodeHeaders
+          ;
+      });
       formatter = forAllSystems (
         system:
-        nixpkgs.legacyPackages.${system}.treefmt.withConfig {
+        let
+          pkgs = pkgsFor.${system};
+        in
+        pkgs.treefmt.withConfig {
           imports = [ ./treefmt.nix ];
-          _module.args.bun = self.legacyPackages.${system}.bun;
+          _module.args.bun = pkgs.bun;
         }
       );
       checks = forAllSystems (
         system:
-        (import ./tests {
-          pkgs = nixpkgs.legacyPackages.${system} // self.legacyPackages.${system};
-        })
+        (import ./tests { pkgs = pkgsFor.${system}; })
         // {
           flake-api = import ./tests/flake.nix {
             inherit self;
-            pkgs = nixpkgs.legacyPackages.${system};
+            pkgs = pkgsFor.${system};
+            basePkgs = nixpkgs.legacyPackages.${system};
           };
         }
       );
-      hydraJobs = forAllSystems (
+      packages = forAllSystems (
         system:
         let
-          pkgs = self.legacyPackages.${system};
-          basePkgs = nixpkgs.legacyPackages.${system};
+          pkgs = pkgsFor.${system};
         in
         {
-          integration = {
-            opencode = pkgs.callPackage ./integration/opencode.nix { };
-            swagger-typescript-api = pkgs.callPackage ./integration/swagger-typescript-api.nix { };
-            kulala-core = pkgs.callPackage ./integration/kulala-core.nix { };
-            gitlab-ci-local = pkgs.callPackage ./integration/gitlab-ci-local.nix { };
-            filen-cli = pkgs.callPackage ./integration/filen-cli.nix { };
-            balatro-mod-manager-web = pkgs.callPackage ./integration/balatro-mod-manager-web.nix { };
-            handy-frontend = pkgs.callPackage ./integration/handy-frontend.nix { };
-            models-dev = pkgs.callPackage ./integration/models-dev.nix { };
-          }
-          // nixpkgs.lib.optionalAttrs basePkgs.stdenv.hostPlatform.isLinux {
-            convertx = pkgs.callPackage ./integration/convertx.nix { };
-            equibop = pkgs.callPackage ./integration/equibop.nix { };
-          };
+          inherit (pkgs) bun bunNodeGyp bunNodeHeaders;
+          example-opencode = pkgs.callPackage ./integration/opencode.nix { };
+          example-swagger-typescript-api = pkgs.callPackage ./integration/swagger-typescript-api.nix { };
+          example-kulala-core = pkgs.callPackage ./integration/kulala-core.nix { };
+          example-gitlab-ci-local = pkgs.callPackage ./integration/gitlab-ci-local.nix { };
+          example-filen-cli = pkgs.callPackage ./integration/filen-cli.nix { };
+          example-balatro-mod-manager-web = pkgs.callPackage ./integration/balatro-mod-manager-web.nix { };
+          example-handy-frontend = pkgs.callPackage ./integration/handy-frontend.nix { };
+          example-models-dev = pkgs.callPackage ./integration/models-dev.nix { };
+        }
+        // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          example-convertx = pkgs.callPackage ./integration/convertx.nix { };
+          example-equibop = pkgs.callPackage ./integration/equibop.nix { };
         }
       );
-      packages = forAllSystems (system: {
-        inherit (self.legacyPackages.${system}) bun;
-      });
-    }
-    // nixpkgs.lib.genAttrs [
-      "bun"
-      "buildBunPackage"
-      "fetchBunDeps"
-      "importBunLock"
-      "bunHooks"
-      "bunNodeGyp"
-      "bunNodeHeaders"
-    ] (name: forAllSystems (system: self.legacyPackages.${system}.${name}))
-    // nixpkgs.lib.genAttrs [
-      "bunConfigHook"
-      "bunBuildHook"
-      "bunCheckHook"
-      "bunInstallHook"
-      "bunNodeFallbackHook"
-      "bunNodeGypHook"
-      "bunNodeShim"
-    ] (name: forAllSystems (system: self.legacyPackages.${system}.bunHooks.${name}));
+    };
 }

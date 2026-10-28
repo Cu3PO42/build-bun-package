@@ -119,4 +119,4 @@ jobs:
           PACKAGE: ${{ matrix.package }}
         run: |
           test "$(nix eval --impure --raw --expr builtins.currentSystem)" = "$NIX_SYSTEM"
-          nix build --no-link --print-build-logs ".#hydraJobs.$NIX_SYSTEM.integration.$PACKAGE"
+          nix build --no-link --print-build-logs ".#packages.$NIX_SYSTEM.example-$PACKAGE"

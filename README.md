@@ -42,7 +42,7 @@ Add this repository as a flake input named `nix-bun`. No overlay is required:
 
 ```nix
 {
-  packages.${system}.my-app = nix-bun.buildBunPackage.${system} {
+  packages.${system}.my-app = nix-bun.legacyPackages.${system}.buildBunPackage {
     pname = "my-app";
     version = "1.0.0";
     src = ./.;
@@ -74,7 +74,7 @@ For a bundled executable or static website, override `installPhase` to install
 only the build output:
 
 ```nix
-nix-bun.buildBunPackage.${system} {
+nix-bun.legacyPackages.${system}.buildBunPackage {
   pname = "my-site";
   version = "1.0.0";
   src = ./.;
@@ -102,11 +102,11 @@ Cross compilation is not supported.
 using the integrity hash already recorded in a text `bun.lock`:
 
 ```nix
-nix-bun.buildBunPackage.${system} {
+nix-bun.legacyPackages.${system}.buildBunPackage {
   pname = "my-app";
   version = "1.0.0";
   src = ./.;
-  bunDeps = nix-bun.importBunLock.${system} { src = ./.; };
+  bunDeps = nix-bun.legacyPackages.${system}.importBunLock { src = ./.; };
 }
 ```
 
@@ -186,13 +186,14 @@ Apply `nix-bun.overlays.default` to use your own Nixpkgs package set and access
 repository's Bun is newer. Nixpkgs follows `nixos-unstable`, with its revision
 recorded in `flake.lock`.
 
-Without the overlay, top-level `fetchBunDeps`, `importBunLock`, `bunConfigHook`,
-`bunBuildHook`, `bunCheckHook`, `bunInstallHook`, `bunNodeFallbackHook`,
-`bunNodeGypHook`, `bunNodeShim`,
-`bunNodeGyp`, `bunNodeHeaders`, `bunHooks`, and `bun` are indexed by `${system}`.
-The complete scope is available as `nix-bun.legacyPackages.${system}` and
-supports `overrideScope`. The `packages` output exposes Bun, with no default
-package.
+Without the overlay, `nix-bun.legacyPackages.${system}` exposes `bun`,
+`buildBunPackage`, `fetchBunDeps`, `importBunLock`, `bunNodeGyp`, `bunNodeHeaders`,
+and the grouped `bunHooks`. This set contains only this project's helpers and
+tools. Customize the package set through overlays, or use individual helpers'
+`override` and packages' `overrideAttrs` methods.
+
+The `packages.${system}` output exposes `bun`, `bunNodeGyp`, `bunNodeHeaders`, and
+real-world examples named `example-<name>`, with no default package.
 
 To use the hooks with `stdenv.mkDerivation`, add the desired hooks from
 `pkgs.bunHooks` to `nativeBuildInputs` and supply `bunDeps`. Each hook propagates
@@ -385,16 +386,16 @@ supply an updated lockfile explicitly.
 ### Build examples and run checks
 
 Real-world package examples live in [`integration/`](./integration) and are
-exposed under `hydraJobs.${system}.integration`. Build one explicitly, or fetch
+exposed under `packages.${system}` with an `example-` prefix. Build one explicitly, or fetch
 just its cache:
 
 ```sh
-nix build .#hydraJobs.aarch64-darwin.integration.filen-cli
-nix build .#hydraJobs.aarch64-darwin.integration.opencode.bunDeps
+nix build .#example-filen-cli
+nix build .#example-opencode.bunDeps
 ```
 
-Substitute your system as needed. These builds are excluded from default flake
-checks because they can be large. The [opencode example](./integration/opencode.nix)
+Nix selects the current system automatically. These builds are excluded from
+default flake checks because they can be large. The [opencode example](./integration/opencode.nix)
 shows custom workspace filtering, dependency patches, and installation;
 [swagger-typescript-api](./integration/swagger-typescript-api.nix) uses the
 default build and install hooks.
@@ -457,7 +458,7 @@ regenerate the adjacent lockfile with Bun, and recalculate its `bunDepsHash`.
 ## Option reference
 
 These are Nix derivation attributes. With the overlay, the builder is
-`pkgs.buildBunPackage`; without it, use `nix-bun.buildBunPackage.${system}`.
+`pkgs.buildBunPackage`; without it, use `nix-bun.legacyPackages.${system}.buildBunPackage`.
 
 | Attribute | Default | Purpose |
 | --- | --- | --- |
