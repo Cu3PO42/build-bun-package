@@ -22,7 +22,7 @@ buildBunPackage (finalAttrs: {
   };
 
   bunDepsHash = "sha256-yWLxPq4K937wHStCS0RsbLy1GveNhQ9+bzLf2VEyH/w=";
-  nodejs = nodejs-slim;
+  runtime = nodejs-slim;
   bunBuildScript = "build:node";
 
   postPatch = ''

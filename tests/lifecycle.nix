@@ -116,7 +116,7 @@ in
   });
 
   lifecycle-node-shebangs = lifecycle-shebangs.overrideAttrs (_: {
-    nodejs = pkgs.nodejs;
+    runtime = pkgs.nodejs;
     makeCacheWritable = false; # Scripts still require a writable copy.
   });
 

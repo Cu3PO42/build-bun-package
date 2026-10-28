@@ -24,6 +24,7 @@ buildBunPackage (finalAttrs: {
   pname = "equibop";
   version = "3.2.2";
   strictDeps = true;
+  buildRuntime = nodejs;
 
   src = fetchFromGitHub {
     owner = "Equicord";
@@ -68,7 +69,6 @@ buildBunPackage (finalAttrs: {
     copyDesktopItems
     jq
     makeWrapper
-    nodejs
     python3Packages.icnsutil
   ];
 

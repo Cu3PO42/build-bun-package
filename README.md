@@ -15,9 +15,9 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 
 - Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
   There is no equivalent to `npmRebuildFlags`: Bun runs scripts through a forced install after dependency preparation.
-- By default, Bun is used to execute any scripts. If you want to keep Node.js, add it as a `nativeBuildInput`.
+- By default, Bun executes scripts. Set `runtime = pkgs.nodejs;` to use Node.js throughout, or `buildRuntime` to select it only for build scripts.
 - Executable project files, including local and workspace helpers, have their shebangs patched before installation.
-- The default install phase creates executable wrappers using Bun. Set `bunRuntime = pkgs.nodejs;` to use Node.js instead.
+- The default install phase creates executable wrappers using Bun. Set `runtime = pkgs.nodejs;` to use Node.js instead.
 - Workspace selection uses a directory instead of a package name: `bunWorkspace` is relative to `bunRoot`, i.e. the folder in which the lockfile is located.
   Each Bun hook enters its required directory and restores the previous working directory, so custom phases must enter `bunRoot` themselves when needed.
 - Obviously all names and parameters use `bun` instead of `npm` :)
@@ -59,7 +59,7 @@ the dependencies, run `nix build .#my-app.bunDeps`.
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
 and production dependencies. Executables declared in `package.json` receive
-Bun wrappers by default; set `bunRuntime = pkgs.nodejs;` for Node.js wrappers.
+Bun wrappers by default; set `runtime = pkgs.nodejs;` for Node.js wrappers.
 Declared manual pages are installed too. Set `dontBunBuild = true`
 for a package without a build script. Set `dontBunPrune = true` to retain dev
 dependencies in the default installation.
@@ -221,19 +221,30 @@ still apply, and an explicit `--ignore-scripts` in `bunInstallFlags` or upstream
 configuration can still disable scripts. This option controls installation;
 the build hook runs independently, and packing always skips scripts.
 
-The default runtime is Bun, including a fallback `node` command when none is
-already on `PATH`. For scripts that need genuine Node.js, set
-`nodejs = pkgs.nodejs-slim;` or add Node.js to `nativeBuildInputs`.
-Select the runtime for installed application wrappers independently with
-`bunRuntime = pkgs.nodejs-slim;`. It defaults to the selected `bun` package and
-does not change the build or lifecycle runtime. To use Node.js for both:
+The default runtime is the selected `bun` package. Set `runtime` to Node.js to
+use it for installed wrappers, dependency Node shebangs, and `node` commands
+during installation, builds, and checks:
 
 ```nix
 {
-  nodejs = pkgs.nodejs-slim;
-  bunRuntime = pkgs.nodejs-slim;
+  runtime = pkgs.nodejs-slim;
 }
 ```
+
+`buildRuntime` defaults to `runtime`. Override it when build tools need a
+different runtime from the installed application:
+
+```nix
+{
+  # The installed application runs with Bun; build tools use Node.js.
+  buildRuntime = pkgs.nodejs-slim;
+}
+```
+
+The hooks supply a `node` command for `buildRuntime`, taking precedence over
+incidental Node.js inputs. Installed dependency Node shebangs are retargeted to
+`runtime`, so a build-only Node.js reference does not remain in those scripts.
+Installed wrappers also supply that runtime as `node` for child processes.
 
 Bun still fetches, installs, packs, and prunes dependencies, and the build hook
 still invokes `bun run`. That command respects Node.js shebangs and `node`
@@ -248,16 +259,18 @@ fixups described below. To compile dependencies with node-gyp, enable the option
 {
   nodeGyp = true;
   bunRunScripts = true;
-  # Optional: run node-gyp with genuine Node.js and its matching headers.
-  nodejs = pkgs.nodejs;
+  # Optional: use Node.js throughout instead of Bun.
+  runtime = pkgs.nodejs;
 }
 ```
 
-Omit `nodejs` to run node-gyp with Bun and headers matching Bun's reported Node
-compatibility version. Merely adding Node.js to `nativeBuildInputs` changes
-`PATH`, but does not select node-gyp's runtime or headers. The toolchain supplies
-Python, node-gyp, and local headers; stdenv supplies the compiler. Add
-package-specific libraries through the usual inputs.
+node-gyp runs with `buildRuntime` and compiles against headers for `runtime`.
+For Bun, the headers match its reported Node.js compatibility version; for
+Node.js, they come from the selected Node.js package. Node-API addons can work
+across these runtimes, but matching Node.js versions does not make V8-specific
+addons compatible with Bun. The toolchain supplies Python, node-gyp, and local
+headers; stdenv supplies the compiler. Add package-specific libraries through
+the usual inputs.
 
 If only a specific setup command is needed, leave automatic scripts disabled
 and run it after dependency shebangs have been patched:
@@ -303,13 +316,13 @@ For a development shell with the native toolchain, use:
 
 ```nix
 pkgs.mkShell {
-  packages = [ pkgs.bunNodeGypHook ];
+  packages = [ pkgs.bunHooks.bunNodeGypHook ];
 }
 ```
 
 Run `bun install` normally, or `node-gyp rebuild` from a package with
 `binding.gyp`. For genuine Node.js, use
-`pkgs.bunNodeGypHook.override { nodejs = pkgs.nodejs; }`. For just Bun and the
+`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunNodeGypHook`. For just Bun and the
 fallback `node` command, use `pkgs.bunHooks.bunNodeFallbackHook` instead.
 
 ### Private registries
@@ -449,9 +462,9 @@ These are Nix derivation attributes. With the overlay, the builder is
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bun` | provided Bun | Bun package used for fetching and hooks (>= 1.4.4), and for executable wrappers by default |
-| `bunRuntime` | selected `bun` | Runtime package for installed executable wrappers, e.g. `pkgs.nodejs-slim`; independent of the build/lifecycle runtime |
-| `nodejs` | `null` | Optional genuine Node.js runtime for build/lifecycle compatibility and node-gyp; selects matching Node sources when `nodeGyp` is enabled |
-| `nodeGyp` | `false` | Add standalone node-gyp, Python and local headers; run with Bun by default or the selected `nodejs` |
+| `runtime` | selected `bun` | Runtime for installed wrappers and dependency Node shebangs; selects native addon target headers |
+| `buildRuntime` | selected `runtime` | Runtime for Node shebangs and `node` commands during installation/build/check, and for node-gyp itself |
+| `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for the installed runtime |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunDepsNativeBuildInputs` | `[]` | Tools/setup hooks explicitly needed for fetching or source preparation, e.g. Git or jq |
@@ -507,12 +520,13 @@ instead of `bunDepsHash`, and `nativeBuildInputs` instead of
 ### Native toolchain overrides
 
 The standalone helpers are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`.
-Override `bunNodeGypHook`'s `bunNodeHeaders` or `python3` argument for another
+Override `bunHooks`' `bunNodeHeaders` or `python3` argument for another
 header set or Python; custom headers must expose `version`. When using the
-hook independently with another Bun, override its `bun` argument too.
-`buildBunPackage` selects matching hooks automatically through its `bun` and
-`nodejs` attributes. To select the installed runtime when using hooks directly,
-use `(pkgs.bunHooks.override { bunRuntime = pkgs.nodejs; }).bunInstallHook`.
+hooks independently with another Bun, override their `bun` argument too.
+`buildBunPackage` selects matching hooks automatically through its `bun`,
+`runtime`, and `buildRuntime` attributes. Direct hook users can override these
+arguments on `bunHooks`, for example
+`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunInstallHook`.
 
 ## Implementation notes and limitations
 
@@ -613,7 +627,8 @@ with only its manifest and dependencies installed.
 
 The default hooks add no Node.js, npm, Python, node-gyp, or headers. The fallback
 `node` is a permanent store symlink to Bun, so patched shebangs remain usable
-after the build. An explicitly supplied Node.js on `PATH` takes precedence.
+after the build. The selected `buildRuntime` supplies the `node` command.
+Explicit Bun commands continue to use Bun.
 
 The optional node-gyp toolchain uses pinned tools and local headers to avoid
 automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,

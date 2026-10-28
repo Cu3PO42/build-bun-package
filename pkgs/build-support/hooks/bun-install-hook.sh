@@ -2,6 +2,35 @@
 # stdenv enables errexit, so failed directory changes abort the build.
 # shellcheck disable=SC2164
 
+# Dependencies were patched for the build runtime before lifecycle scripts ran.
+# Retarget their Node shebangs when installing, including paths already in the
+# store. Explicit Bun commands and other interpreters keep their own runtime.
+bunInstallRuntimeShebangs() {
+    local file line interpreter command args timestamp
+    while IFS= read -r -d "" file; do
+        isScript "$file" || continue
+        IFS= read -r line <"$file" || [[ -n $line ]]
+        read -r interpreter command args <<<"${line:2}"
+        if [[ $interpreter == */env && $command == -S ]]; then
+            read -r command args <<<"$args"
+            if [[ $command == node || $command == */node ]]; then
+                # patchShebangs preserves an absolute command after env -S.
+                # Replace that command explicitly, preserving flags and time.
+                timestamp=$(stat --printf '%y' "$file")
+                line="#!$interpreter -S @runtimeNodeShim@/bin/node${args:+ $args}"
+                line=${line//\\/\\\\}
+                sed -i "1c\\$line" "$file"
+                touch --date "$timestamp" "$file"
+            fi
+            continue
+        fi
+        if [[ $interpreter == */node ]] ||
+            [[ $interpreter == */env && ($command == node || $command == */node) ]]; then
+            PATH="@runtimeNodeShim@/bin:$PATH" patchShebangs --build --update "$file"
+        fi
+    done < <(find "$1" -type f -perm -0100 ! -name bun.lockb -print0)
+}
+
 # The upstream nodejsInstallExecutables hook can use Bun via hostNode, but its
 # string-bin handling uses the full scoped name, and splits bin paths on spaces.
 bunInstallExecutables() {
@@ -15,7 +44,8 @@ bunInstallExecutables() {
         # out is supplied by stdenv.
         # shellcheck disable=SC2154
         makeWrapper @runtime@ "$out/bin/$binName" \
-            --add-flags "$(printf '%q' "$packageOut/$binPath")" "${wrapperFlags[@]}"
+            --add-flags "$(printf '%q' "$packageOut/$binPath")" \
+            --prefix PATH : @runtimeNodeShim@/bin "${wrapperFlags[@]}"
     done < <(@jq@/bin/jq -c 'if (.bin | type) == "string" then {key: (.name | split("/") | last), value: .bin} elif (.bin | type) == "object" then .bin | to_entries[] else empty end' "$packageJson")
 }
 
@@ -114,6 +144,7 @@ bunInstallHook() {
         bun prune "${pruneFlags[@]}" --production
     fi
     bunInstallPackageTree "$projectRoot" "$packageOut"
+    bunInstallRuntimeShebangs "$packageOut"
 
     bunInstallExecutables "$selectedPackage/package.json" "$packageOut/$selectedPackage"
     bunInstallManuals "$selectedPackage/package.json" "$packageOut/$selectedPackage"

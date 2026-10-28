@@ -1,25 +1,35 @@
 { pkgs, example }:
 let
-  native-addon = pkgs.buildBunPackage {
+  native-addon = pkgs.buildBunPackage (finalAttrs: {
     pname = "bun-native-example";
     version = "1";
     src = ./fixtures/native;
     nodeGyp = true;
     bunRunScripts = true;
+    bunBuildFlags = pkgs.lib.optionals (pkgs.lib.getName finalAttrs.runtime != "bun") [
+      "--target=node"
+      "--format=cjs"
+    ];
     bunDepsHash = "sha256-ztFqYwYa7DcpKqupOk7aapedtuBjK628uur9erJwLns=";
-    # Both node-gyp and ordinary node commands must run with Bun.
     preBuild = ''
-      test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
+      test "$(node -p process.execPath)" = "$(realpath '${pkgs.lib.getExe finalAttrs.buildRuntime}')"
       test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
+      grep -F '${pkgs.lib.getExe finalAttrs.buildRuntime}' "$npm_config_node_gyp"
+      test "$npm_config_target" = '${
+        if pkgs.lib.getName finalAttrs.runtime == "bun" then
+          pkgs.bunNodeHeaders.version
+        else
+          finalAttrs.runtime.version
+      }'
     '';
     # With local headers, even an unusable download URL must work.
     env.npm_config_disturl = "http://127.0.0.1:9";
     doInstallCheck = true;
     installCheckPhase = ''
       test "$("$out/bin/bun-native-example")" = 42
-      test "$(node -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
+      test "$(${pkgs.lib.getExe finalAttrs.runtime} -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
     '';
-  };
+  });
 in
 {
   node-headers-version = pkgs.bun.tests.node-headers;
@@ -29,7 +39,7 @@ in
   standalone-node-gyp-hook =
     pkgs.runCommandCC "bun-standalone-node-gyp-hook"
       {
-        nativeBuildInputs = [ pkgs.bunNodeGypHook ];
+        nativeBuildInputs = [ pkgs.bunHooks.bunNodeGypHook ];
         npm_config_disturl = "http://127.0.0.1:9";
       }
       ''
@@ -58,13 +68,16 @@ in
       '';
 
   native-node-gyp = native-addon.overrideAttrs (_: {
-    nodejs = pkgs.nodejs;
-    preBuild = ''
-      test "$(command -v node)" = '${pkgs.nodejs}/bin/node'
-      node -e 'if (process.versions.bun) process.exit(1)'
-      test "$npm_config_target" = '${pkgs.nodejs.version}'
-      test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
-    '';
+    runtime = pkgs.nodejs;
+  });
+
+  native-bun-runtime-node-build = native-addon.overrideAttrs (_: {
+    buildRuntime = pkgs.nodejs_22;
+  });
+
+  native-node-runtime-bun-build = native-addon.overrideAttrs (_: {
+    runtime = pkgs.nodejs_22;
+    buildRuntime = pkgs.bun;
   });
 
   native-node-compatibility =

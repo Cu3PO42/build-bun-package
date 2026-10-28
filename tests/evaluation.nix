@@ -52,7 +52,10 @@
       });
       alternateNodejs = pkgs.nodejs_22;
       alternateNode = example.overrideAttrs (_: {
-        nodejs = alternateNodejs;
+        runtime = alternateNodejs;
+      });
+      alternateBuildRuntime = example.overrideAttrs (_: {
+        buildRuntime = alternateNodejs;
       });
       customUpdater = example.overrideAttrs (_: {
         passthru = {
@@ -88,11 +91,15 @@
     assert rebuiltBun.version == pkgs.bun.version;
     assert builtins.elem (toString alternateBun) (map toString alternate.nativeBuildInputs);
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
-    assert builtins.elem (toString alternateNodejs) (map toString alternateNode.nativeBuildInputs);
-    assert example.nodejs == null;
-    assert example.bunRuntime == pkgs.bun;
-    assert alternate.bunRuntime == alternateBun;
-    assert alternateNode.bunRuntime == pkgs.bun;
+    assert example.runtime == pkgs.bun;
+    assert example.buildRuntime == pkgs.bun;
+    assert alternate.runtime == alternateBun;
+    assert alternate.buildRuntime == alternateBun;
+    assert alternateNode.runtime == alternateNodejs;
+    assert alternateNode.buildRuntime == alternateNodejs;
+    assert alternateBuildRuntime.runtime == pkgs.bun;
+    assert alternateBuildRuntime.buildRuntime == alternateNodejs;
+    assert alternateBuildRuntime.bunDeps.drvPath == example.bunDeps.drvPath;
     assert !example.bunRunScripts;
     assert scripted.bunRunScripts;
     assert scripted.bunDeps.drvPath == example.bunDeps.drvPath;

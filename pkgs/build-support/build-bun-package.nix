@@ -25,8 +25,8 @@ lib.extendMkDerivation {
       bunCheckHook ? null,
       bunInstallHook ? null,
       nativeBuildInputs ? [ ],
-      nodejs ? null,
-      bunRuntime ? finalAttrs.bun,
+      runtime ? finalAttrs.bun,
+      buildRuntime ? finalAttrs.runtime,
       nodeGyp ? false,
       bunWorkspace ? null,
       bunRunScripts ? false,
@@ -47,8 +47,8 @@ lib.extendMkDerivation {
         finalAttrs.bun;
       selectedHooks = bunHooks.override {
         bun = selectedBun;
-        nodejs = finalAttrs.nodejs;
-        bunRuntime = finalAttrs.bunRuntime;
+        runtime = finalAttrs.runtime;
+        buildRuntime = finalAttrs.buildRuntime;
       };
       hook =
         name:
@@ -98,8 +98,8 @@ lib.extendMkDerivation {
       inherit
         bunDepsNativeBuildInputs
         bunDepsImpureEnvVars
-        nodejs
-        bunRuntime
+        runtime
+        buildRuntime
         nodeGyp
         bunWorkspace
         bunRunScripts
@@ -124,7 +124,6 @@ lib.extendMkDerivation {
           (hook "bunCheckHook")
           (hook "bunInstallHook")
         ]
-        ++ lib.optional (finalAttrs.nodejs != null) finalAttrs.nodejs
         ++ lib.optional finalAttrs.nodeGyp selectedHooks.bunNodeGypHook;
       passthru = {
         updateScript = nix-update-script {

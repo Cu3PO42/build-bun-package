@@ -17,7 +17,7 @@
       overlays.default =
         final: prev:
         let
-          packages = import ./pkgs { inherit (final) callPackage lib; };
+          packages = import ./pkgs { inherit (final) callPackage; };
         in
         packages
         // {
@@ -34,7 +34,6 @@
           scope:
           import ./pkgs {
             inherit (scope) callPackage;
-            inherit (pkgs) lib;
           }
         )
       );
@@ -92,7 +91,6 @@
       "bunHooks"
       "bunNodeGyp"
       "bunNodeHeaders"
-      "bunNodeGypHook"
     ] (name: forAllSystems (system: self.legacyPackages.${system}.${name}))
     // nixpkgs.lib.genAttrs [
       "bunConfigHook"
@@ -100,6 +98,7 @@
       "bunCheckHook"
       "bunInstallHook"
       "bunNodeFallbackHook"
+      "bunNodeGypHook"
       "bunNodeShim"
     ] (name: forAllSystems (system: self.legacyPackages.${system}.bunHooks.${name}));
 }

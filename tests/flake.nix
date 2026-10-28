@@ -33,7 +33,7 @@ assert self.bunConfigHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.b
 assert self.bunBuildHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunBuildHook;
 assert self.bunCheckHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunCheckHook;
 assert self.bunInstallHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunInstallHook;
-assert self.bunNodeGypHook.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeGypHook;
+assert self.bunNodeGypHook.${pkgs.stdenv.hostPlatform.system} == scope.bunHooks.bunNodeGypHook;
 assert self.bunNodeGyp.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeGyp;
 assert self.bunNodeHeaders.${pkgs.stdenv.hostPlatform.system} == scope.bunNodeHeaders;
 assert scope.buildBunPackage ? override;
@@ -43,13 +43,11 @@ assert scope.importBunLock.bunConfigHook == scope.bunHooks.bunImportConfigHook;
 assert extended.bun == pkgs.bun;
 assert overlaid.bun.drvPath == expectedBun.drvPath;
 assert overlayPackage.bun.drvPath == overlaid.bun.drvPath;
-assert builtins.elem overlaid.bunNodeGypHook.drvPath (
+assert overlayPackage.runtime.drvPath == overlaid.bun.drvPath;
+assert overlayPackage.buildRuntime.drvPath == overlaid.bun.drvPath;
+assert !(scope ? bunNodeGypHook);
+assert !(overlaid ? bunNodeGypHook);
+assert builtins.elem overlaid.bunHooks.bunNodeGypHook.drvPath (
   map (input: input.drvPath) overlayPackage.nativeBuildInputs
 );
-assert
-  (scope.bunNodeGypHook.override { nodejs = pkgs.nodejs; }).drvPath
-  == (scope.bunHooks.override { nodejs = pkgs.nodejs; }).bunNodeGypHook.drvPath;
-assert
-  (scope.bunNodeGypHook.override { python3 = pkgs.python312; }).drvPath
-  == (scope.bunHooks.override { python3 = pkgs.python312; }).bunNodeGypHook.drvPath;
 pkgs.runCommand "bun-flake-api" { } "touch $out"

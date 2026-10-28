@@ -12,20 +12,30 @@
   stdenv,
   cctools,
   srcOnly,
-  nodejs ? null,
-  bunRuntime ? bun,
+  runtime ? bun,
+  buildRuntime ? runtime,
 }:
 let
-  nodeGyp = bunNodeGyp.override { inherit bun nodejs; };
-  nodeHeaders = if nodejs == null then bunNodeHeaders else srcOnly nodejs;
-  nodeVersion = if nodejs == null then bunNodeHeaders.version else nodejs.version;
-  bunNodeShim = runCommand "bun-node-shim-${bun.version}" { } ''
-    mkdir -p "$out/bin"
-    ln -s ${bun}/bin/bun "$out/bin/node"
-  '';
+  nodeGyp = bunNodeGyp.override {
+    inherit bun;
+    runtime = buildRuntime;
+  };
+  nodeHeaders = if lib.getName runtime == "bun" then bunNodeHeaders else srcOnly runtime;
+  nodeVersion = nodeHeaders.version;
+  nodeShim =
+    runtime:
+    runCommand "bun-node-shim-${runtime.name}" { } ''
+      mkdir -p "$out/bin"
+      ln -s ${lib.getExe runtime} "$out/bin/node"
+    '';
+  bunNodeShim = nodeShim buildRuntime;
+  runtimeNodeShim = nodeShim runtime;
   bunNodeFallbackHook = makeSetupHook {
     name = "bun-node-fallback-hook";
-    propagatedBuildInputs = [ bun ];
+    propagatedBuildInputs = lib.unique [
+      bun
+      buildRuntime
+    ];
     substitutions = { inherit bunNodeShim; };
   } ./bun-node-fallback-hook.sh;
   bunConfigHook = makeSetupHook {
@@ -46,7 +56,6 @@ in
       bunNodeFallbackHook
       python3
     ]
-    ++ lib.optional (nodejs != null) nodejs
     ++ lib.optionals stdenv.hostPlatform.isDarwin [ cctools ];
     substitutions = {
       nodeGyp = lib.getExe nodeGyp;
@@ -89,7 +98,8 @@ in
     ];
     substitutions = {
       inherit jq;
-      runtime = lib.getExe bunRuntime;
+      runtime = lib.getExe runtime;
+      inherit runtimeNodeShim;
     };
   } ./bun-install-hook.sh;
 }
