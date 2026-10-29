@@ -3,6 +3,7 @@
   stdenvNoCC,
   bun,
   cacert,
+  jd-diff-patch,
 }:
 
 {
@@ -28,6 +29,7 @@ stdenvNoCC.mkDerivation (
     nativeBuildInputs = nativeBuildInputs ++ [
       bun
       cacert
+      jd-diff-patch
     ];
     strictDeps = args.strictDeps or true;
     dontConfigure = true;
@@ -49,7 +51,7 @@ stdenvNoCC.mkDerivation (
           fi
           # Migration may consult registry metadata and update workspace manifests.
           # Keep its timestamped registry cache outside the fixed-output path.
-          bun ${./migrate-lock.ts} snapshot "$TMPDIR/bun-migration-before.json"
+          bash ${./migrate-lock.sh} snapshot "$TMPDIR/bun-migration"
           migrateFlags=()
           concatTo migrateFlags bunFlags bunFlagsArray
           BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-migration-cache" bun pm migrate "''${migrateFlags[@]}"
@@ -58,7 +60,7 @@ stdenvNoCC.mkDerivation (
             exit 1
           fi
           mkdir -p "$out/.nix-bun"
-          bun ${./migrate-lock.ts} record "$TMPDIR/bun-migration-before.json" "$out/.nix-bun/migration.json"
+          bash ${./migrate-lock.sh} record "$TMPDIR/bun-migration" "$out/.nix-bun/migration"
           lockfile=bun.lock
         fi
         # Refuse manifest/lockfile drift even though fetching never saves a lock.

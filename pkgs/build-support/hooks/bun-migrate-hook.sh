@@ -3,10 +3,10 @@
 # shellcheck disable=SC2164
 
 bunMigrateHook() {
-    if [[ ! -f ${bunDeps-}/.nix-bun/migration.json ]]; then return; fi
+    if [[ ! -d ${bunDeps-}/.nix-bun/migration && ! -f ${bunDeps-}/.nix-bun/migration.json ]]; then return; fi
     echo "Executing bunMigrateHook"
     pushd "${bunRoot:-.}" >/dev/null
-    bun @migrateLock@ apply "$bunDeps"
+    bash @migrateLock@ apply "$bunDeps"
     popd >/dev/null
 }
 

@@ -4,6 +4,7 @@
   makeWrapper,
   installShellFiles,
   jq,
+  jd-diff-patch,
   bun,
   runCommand,
   bunNodeGyp,
@@ -42,8 +43,8 @@ rec {
   } ./bun-node-fallback-hook.sh;
   bunMigrateHook = makeSetupHook {
     name = "bun-migrate-hook";
-    propagatedBuildInputs = [ bun ];
-    substitutions.migrateLock = ../migrate-lock.ts;
+    propagatedBuildInputs = [ jd-diff-patch ];
+    substitutions.migrateLock = ../migrate-lock.sh;
     meta.license = lib.licenses.mit;
   } ./bun-migrate-hook.sh;
   bunConfigHook = makeSetupHook {

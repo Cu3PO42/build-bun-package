@@ -86,9 +86,9 @@ migration. Migration can consult the registry for missing metadata; its temporar
 registry cache is excluded from the fixed-output result. The separate
 `bunHooks.bunMigrateHook`, propagated by the config hook, applies the saved result
 after project patches and before offline installation. Upstream does not need to
-commit a generated Bun lockfile. Manifest edits are merged by field, preserving
+commit a generated Bun lockfile. Manifest edits are saved as JSON patches, preserving
 unrelated build-side changes such as scripts and descriptions. Conflicting edits
-fail with the affected field; dependency changes still require a matching cache
+fail with the affected manifest; dependency changes still require a matching cache
 and must pass Bun's frozen-lockfile validation.
 
 By default, the builder installs dependencies offline with lifecycle scripts
@@ -592,9 +592,11 @@ Bun upgrade can reuse a cache when its contents stay unchanged. Regenerate the
 hash when those contents change. Changes to this project's cache format require
 updating the format marker and expected hashes.
 For migrated projects, metadata additionally records the foreign lockfiles,
-workspace/Yarn migration configuration, and manifest transformations. The
-migration hook validates those inputs and applies only migration's field edits;
-the config hook then checks the generated Bun lockfile as usual.
+workspace/Yarn migration configuration, and one JSON patch per changed manifest.
+`jd-diff-patch` generates and applies the patches using its RFC 6902 subset,
+checking old values and rejecting additions that would overwrite existing fields.
+The migration hook validates those inputs and stages all patched manifests before
+writing any of them. The config hook then checks the generated Bun lockfile as usual.
 
 Fetching covers all platforms in the lockfile, while offline installation
 selects the build host's dependencies. This lets workspaces and platforms share

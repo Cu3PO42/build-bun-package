@@ -10,11 +10,11 @@ let
     "pnpm"
   ];
   hashes = {
-    npm = "sha256-Y505gcY4orTuxu4vbOPP+YbwQ1sT+5YsARwHk/pPx/w=";
-    yarn-classic = "sha256-jBJFLvmkWo3pN78MpXLm5RR1MNP00h38C2e5qRam/CU=";
-    yarn-berry = "sha256-DS7PoRZa4Q9+ynOc/3h9lZGT9BSwhCpVGdgBE5Mxrdc=";
-    yarn-protocol = "sha256-5tr9FNU3X/U0vL3+WxpnwYh1P2N56Dk/voihJNvnFzA=";
-    pnpm = "sha256-JpPLduDpM9Z/xzKmgF8nFVqx7NBWHwu7JDNWCje18IQ=";
+    npm = "sha256-QxJR8G9Denk6bj8pfsmhu9FFKKVNp5/2wrouoDwy060=";
+    yarn-classic = "sha256-rtRnNEUgPfUSPQZyHMdiZangax2U3JER0TAPCf6JGWY=";
+    yarn-berry = "sha256-NIsSzCSC7gfFmB6tEQ4pqjhnPG3187Edax5zEJFAc3w=";
+    yarn-protocol = "sha256-Imf2evWBvKDiDUfiDN8DsX9fl2E5P4UxSK1XNvACcxQ=";
+    pnpm = "sha256-ysawV0wMG7kSrHNMN/5Hq4D17CgZHcJmTqT3ctT1BTQ=";
   };
   source =
     kind:
@@ -37,7 +37,7 @@ let
         test -x node_modules/.bin/is-docker
         test "$(bun cli.js)" = function
         test ! -d "$bunDeps/node_modules"
-        test -f "$bunDeps/.nix-bun/migration.json"
+        test -f "$bunDeps/.nix-bun/migration/version"
         test -z "$(find "$bunDeps" -maxdepth 1 -name '*.npm' -print)"
         ${lib.optionalString (kind == "pnpm") ''
           bun -e 'const p = require("./package.json"); if (!p.workspaces.includes("packages/*") || !p.trustedDependencies.includes("is-docker")) process.exit(1)'
@@ -100,7 +100,7 @@ lib.mapAttrs' (kind: value: lib.nameValuePair "migration-${kind}" value) package
         src = source kind;
         hash = hashes.${kind};
         postInstall = ''
-          test -f "$out/.nix-bun/migration.json"
+          test -f "$out/.nix-bun/migration/version"
           test ! -d "$out/node_modules"
           test -z "$(find "$out" -maxdepth 1 -name '*.npm' -print)"
         '';
@@ -150,7 +150,22 @@ lib.mapAttrs' (kind: value: lib.nameValuePair "migration-${kind}" value) package
       jq '.trustedDependencies = []' package.json > package.json.new
       mv package.json.new package.json
     '';
-  })) "conflicting migration and patch edits at package.json.trustedDependencies";
+  })) "conflicting migration and patch edits in package.json";
+  migration-conflicting-protocol = expectedFailure "conflicting-protocol" (
+    packages.yarn-protocol.overrideAttrs
+      (old: {
+        bunDeps = packages.yarn-protocol.bunDeps;
+        nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];
+        postPatch = ''
+          jq '.dependencies["local-message"] = "file:./other"' package.json > package.json.new
+          mv package.json.new package.json
+        '';
+      })
+  ) "conflicting migration and patch edits in package.json";
+  migration-additional-lock = expectedFailure "additional-lock" (pnpm.overrideAttrs (_: {
+    bunDeps = pnpm.bunDeps;
+    postPatch = "echo '{}' > package-lock.json";
+  })) "migration input package-lock.json differs from cache";
   migration-dependency-drift = expectedFailure "dependency-drift" (pnpm.overrideAttrs (old: {
     bunDeps = pnpm.bunDeps;
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];

@@ -3,11 +3,11 @@ let
   inherit (pkgs) lib;
   fixtures = ./fixtures/migration-real;
   hashes = {
-    markdown-toc = "sha256-4atBf00Lflk4+joGUbEbYJsnFiZHTu6kVijIgu24444=";
-    localtunnel = "sha256-pBz2JCAMLt8oT2KEPpK/lPLFSjVTcfOdXXGEZRAx0bM=";
-    yarn-lock-converter = "sha256-1ZSyhHar1XBgMisYeJFmK/ut+EV4vhpE8xmPgH3Ix00=";
-    relative-time = "sha256-VuvDncsYDxKivfv5vXJW2FAhBkQkmzO8RUCw9XzmcoY=";
-    opcua-schema = "sha256-t19hvaE+wkrVfZJz9xaSYLIJZ8rXeiReQYJQuonZ0M4=";
+    markdown-toc = "sha256-DbMyV83lEx5QHAvBo3ICdJUJS32qt98B/kPoDPpQCwQ=";
+    localtunnel = "sha256-cAxXsv+Mq29tD2zj4HqPxakUGqGfLWaRBAVB9usBHWk=";
+    yarn-lock-converter = "sha256-cXOKb17irKcNcEOdE/q5tGor62y5HLa7Y6uUR+qshN8=";
+    relative-time = "sha256-FsiKMD4cagNs/QbumRRMuRF2TpMnIOhTfIF8VVmLOH8=";
+    opcua-schema = "sha256-PC/k0q1JC8lE/LiWGDs2I/l3f+nD20l1XdKdNL6eKSU=";
   };
   caches = lib.mapAttrs (
     name: hash:
