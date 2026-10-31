@@ -60,7 +60,6 @@ rec {
     name = "bun-config-hook";
     propagatedBuildInputs = [
       bun
-      bunMigrateHook
       bunNodeFallbackHook
       writableTmpDirAsHomeHook
     ];

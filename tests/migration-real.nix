@@ -15,6 +15,7 @@ let
       name = "bun-migration-real-${name}-deps-${pkgs.stdenv.hostPlatform.system}";
       src = fixtures + "/${name}";
       inherit hash;
+      bunMigrateLockfile = true;
       postInstall = ''
         test ! -e "$out/node_modules"
         test ! -e "$out/.tmp"
@@ -33,7 +34,10 @@ lib.mapAttrs' (
       name = "bun-migration-real-${name}";
       src = fixtures + "/${name}";
       inherit bunDeps;
-      nativeBuildInputs = [ pkgs.bunHooks.bunConfigHook ];
+      nativeBuildInputs = [
+        pkgs.bunHooks.bunMigrateHook
+        pkgs.bunHooks.bunConfigHook
+      ];
       dontConfigure = true;
       dontBuild = true;
       prePatch = "test ! -e bun.lock && test ! -e bun.lockb";

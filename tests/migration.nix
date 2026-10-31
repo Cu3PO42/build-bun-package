@@ -31,6 +31,7 @@ let
       version = "1.0.0";
       src = source kind;
       bunDepsHash = hashes.${kind};
+      bunMigrateLockfile = true;
       dontBunBuild = true;
       doCheck = true;
       checkPhase = ''
@@ -80,6 +81,7 @@ let
       (pkgs.fetchBunDeps {
         name = "bun-migration-${name}";
         src = source "npm";
+        bunMigrateLockfile = true;
         inherit postPatch;
         nativeBuildInputs = [ pkgs.jq ];
       }).overrideAttrs
@@ -98,6 +100,7 @@ lib.mapAttrs' (kind: value: lib.nameValuePair "migration-${kind}" value) package
       pkgs.testers.invalidateFetcherByDrvHash pkgs.fetchBunDeps {
         name = "bun-migration-${kind}-cache-${pkgs.stdenv.hostPlatform.system}";
         src = source kind;
+        bunMigrateLockfile = true;
         hash = hashes.${kind};
         postInstall = ''
           test -f "$out/.nix-bun/migration/version"
@@ -129,12 +132,28 @@ lib.mapAttrs' (kind: value: lib.nameValuePair "migration-${kind}" value) package
           cp -R ${source "pnpm"}/. "$out/project/"
         '';
         bunRoot = "project";
+        bunMigrateLockfile = true;
         hash = hashes.pnpm;
         prePatch = ''touch "$HOME/writable-before-patching"'';
         postPatch = ''test ! -f "$bunRoot/bun.lock"'';
         preInstall = ''test -f "$HOME/writable-before-patching"'';
       };
   migration-patched-manifests = patched;
+  migration-disabled-fetch = expectedFailure "disabled-fetch" (
+    (pkgs.fetchBunDeps {
+      name = "bun-migration-disabled-fetch";
+      src = source "npm";
+    }).overrideAttrs
+      (_: {
+        outputHash = null;
+        outputHashAlgo = null;
+        outputHashMode = null;
+      })
+  ) "set bunMigrateLockfile = true";
+  migration-disabled-build = expectedFailure "disabled-build" (pnpm.overrideAttrs (_: {
+    bunDeps = pnpm.bunDeps;
+    bunMigrateLockfile = false;
+  })) "missing bun.lock or bun.lockb";
   migration-patched-protocol = packages.yarn-protocol.overrideAttrs (old: {
     bunDeps = packages.yarn-protocol.bunDeps;
     nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.jq ];

@@ -16,6 +16,8 @@ lib.extendMkDerivation {
       bunDepsHash ? "",
       # Supply a dependency cache or importBunLock source bundle directly.
       bunDeps ? null,
+      # Allow migration from another package manager's lockfile.
+      bunMigrateLockfile ? false,
       # Tools and impure environment variables needed only by the dependency fetcher.
       bunDepsNativeBuildInputs ? [ ],
       bunDepsImpureEnvVars ? [ ],
@@ -73,6 +75,7 @@ lib.extendMkDerivation {
         runtime
         buildRuntime
         bunBuildScript
+        bunMigrateLockfile
         ;
       bunDeps =
         if bunDeps != null then
@@ -89,6 +92,7 @@ lib.extendMkDerivation {
             postPatch = finalAttrs.postPatch or "";
             patchFlags = finalAttrs.patchFlags or [ "-p1" ];
             bunRoot = finalAttrs.bunRoot or ".";
+            bunMigrateLockfile = finalAttrs.bunMigrateLockfile or bunMigrateLockfile;
             bunFlags = finalAttrs.bunFlags or bunFlags;
             bunFetchFlags = finalAttrs.bunFetchFlags or bunFetchFlags;
             nativeBuildInputs = finalAttrs.bunDepsNativeBuildInputs or bunDepsNativeBuildInputs;
@@ -127,6 +131,7 @@ lib.extendMkDerivation {
               selectedHooks.bunInstallHook
           )
         ]
+        ++ lib.optional (finalAttrs.bunMigrateLockfile or bunMigrateLockfile) selectedHooks.bunMigrateHook
         ++ lib.optional (finalAttrs.nodeGyp or nodeGyp) selectedHooks.bunNodeGypHook;
       passthru = {
         updateScript = nix-update-script {

@@ -15,6 +15,8 @@ lib.extendMkDerivation {
       name ? "bun-deps",
       hash ? "",
       bunRoot ? ".",
+      # Allow migration from another package manager's lockfile.
+      bunMigrateLockfile ? false,
       bunFlags ? [ ],
       bunFetchFlags ? [ ],
       nativeBuildInputs ? [ ],
@@ -25,15 +27,20 @@ lib.extendMkDerivation {
       inherit name;
       inherit
         bunRoot
+        bunMigrateLockfile
         bunFlags
         bunFetchFlags
         ;
-      nativeBuildInputs = nativeBuildInputs ++ [
-        bun
-        cacert
-        (bunHooks.override { inherit bun; }).bunFetchMigrateHook
-        writableTmpDirAsHomeHook
-      ];
+      nativeBuildInputs =
+        nativeBuildInputs
+        ++ [
+          bun
+          cacert
+          writableTmpDirAsHomeHook
+        ]
+        ++
+          lib.optional (finalAttrs.bunMigrateLockfile or bunMigrateLockfile)
+            (bunHooks.override { inherit bun; }).bunFetchMigrateHook;
       strictDeps = args.strictDeps or true;
       dontConfigure = true;
       dontBuild = true;
@@ -46,7 +53,10 @@ lib.extendMkDerivation {
           mkdir -p "$out"
           cd "$bunRoot"
           if [[ -f bun.lock ]]; then lockfile=bun.lock
-          else lockfile=bun.lockb
+          elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
+          else
+            echo 'fetchBunDeps: missing bun.lock or bun.lockb; set bunMigrateLockfile = true to migrate a foreign lockfile' >&2
+            exit 1
           fi
           # Refuse manifest/lockfile drift even though fetching never saves a lock.
           # Fetch optional platform variants supported by Bun for a platform-independent cache.

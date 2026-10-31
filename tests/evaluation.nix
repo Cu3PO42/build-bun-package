@@ -50,6 +50,18 @@
       scripted = example.overrideAttrs (_: {
         bunRunScripts = true;
       });
+      migrating = example.overrideAttrs (_: {
+        bunMigrateLockfile = true;
+      });
+      migrationDisabled = migrating.overrideAttrs (_: {
+        bunMigrateLockfile = false;
+      });
+      migratingFetcher = functionalFetcher.overrideAttrs (_: {
+        bunMigrateLockfile = true;
+      });
+      migrationDisabledFetcher = migratingFetcher.overrideAttrs (_: {
+        bunMigrateLockfile = false;
+      });
       alternateNodejs = pkgs.nodejs_22;
       alternateNode = example.overrideAttrs (_: {
         runtime = alternateNodejs;
@@ -118,6 +130,29 @@
     assert !(example.bunRunScripts or false);
     assert scripted.bunRunScripts;
     assert scripted.bunDeps.drvPath == example.bunDeps.drvPath;
+    assert !example.bunMigrateLockfile;
+    assert !example.bunDeps.bunMigrateLockfile;
+    assert migrating.bunMigrateLockfile;
+    assert migrating.bunDeps.bunMigrateLockfile;
+    assert builtins.elem (toString pkgs.bunHooks.bunMigrateHook) (
+      map toString migrating.nativeBuildInputs
+    );
+    assert builtins.elem (toString pkgs.bunHooks.bunFetchMigrateHook) (
+      map toString migrating.bunDeps.nativeBuildInputs
+    );
+    assert
+      !(builtins.elem (toString pkgs.bunHooks.bunMigrateHook) (map toString example.nativeBuildInputs));
+    assert
+      !(builtins.elem (toString pkgs.bunHooks.bunMigrateHook) (
+        map toString pkgs.bunHooks.bunConfigHook.propagatedBuildInputs
+      ));
+    assert migrationDisabled.bunDeps.drvPath == example.bunDeps.drvPath;
+    assert migrationDisabled.drvPath == example.drvPath;
+    assert migratingFetcher.bunMigrateLockfile;
+    assert builtins.elem (toString pkgs.bunHooks.bunFetchMigrateHook) (
+      map toString migratingFetcher.nativeBuildInputs
+    );
+    assert migrationDisabledFetcher.drvPath == functionalFetcher.drvPath;
     assert
       example.updateScript == pkgs.nix-update-script {
         extraArgs = [
@@ -166,8 +201,9 @@
     assert builtins.elem (toString pkgs.writableTmpDirAsHomeHook) (
       map toString functionalFetcher.nativeBuildInputs
     );
-    assert builtins.elem (toString pkgs.bunHooks.bunFetchMigrateHook) (
-      map toString functionalFetcher.nativeBuildInputs
-    );
+    assert
+      !(builtins.elem (toString pkgs.bunHooks.bunFetchMigrateHook) (
+        map toString functionalFetcher.nativeBuildInputs
+      ));
     pkgs.runCommand "bun-override-evaluation" { } "touch $out";
 }

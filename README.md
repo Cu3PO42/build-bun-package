@@ -74,8 +74,11 @@ version: text `bun.lock`, binary `bun.lockb`, and other package managers'
 lockfiles through [Bun's upstream migration support](https://bun.com/docs/pm/lockfile#automatic-lockfile-migration),
 including supported npm, Yarn, and pnpm formats. This also applies when
 `buildBunPackage` calls `fetchBunDeps` implicitly through `bunDepsHash`.
-When no `bun.lock` or `bun.lockb` is present, `fetchBunDeps` runs `bun pm migrate`
-before fetching. Supported foreign lockfiles are `npm-shrinkwrap.json`,
+Migration is opt-in: set `bunMigrateLockfile = true` in `buildBunPackage` or
+`fetchBunDeps` to enable it. The default is `false`, requiring a committed
+`bun.lock` or `bun.lockb`. With migration enabled and neither Bun lockfile present,
+`fetchBunDeps` runs `bun pm migrate` before fetching.
+Supported foreign lockfiles are `npm-shrinkwrap.json`,
 `package-lock.json`, `yarn.lock`, and `pnpm-lock.yaml`; the selected Bun version
 determines which versions and features it can migrate. Bun handles selection
 when several lockfiles are present. Unsupported inputs fail without falling
@@ -84,17 +87,17 @@ back to an unlocked install.
 The cache contains the generated Bun lockfile and any manifest edits made by
 migration. Migration can consult the registry for missing metadata; its temporary
 registry cache is excluded from the fixed-output result. The separate
-`bunHooks.bunMigrateHook`, propagated by the config hook, applies the saved result
-after project patches and before offline installation. Upstream does not need to
+`bunHooks.bunMigrateHook`, added when `bunMigrateLockfile = true`, applies the saved
+result after project patches and before offline installation. Upstream does not need to
 commit a generated Bun lockfile. Manifest edits are saved as JSON patches, preserving
 unrelated build-side changes such as scripts and descriptions. Conflicting edits
 fail with the affected manifest; dependency changes still require a matching cache
 and must pass Bun's frozen-lockfile validation.
 
-In the fetcher, `bunHooks.bunFetchMigrateHook` runs migration after project
-patching, before installation. The install phase only fetches from the resulting
-Bun lockfile. `writableTmpDirAsHomeHook` provides a writable home throughout source
-preparation and fetching.
+In the fetcher, `bunMigrateLockfile = true` adds `bunHooks.bunFetchMigrateHook`,
+which runs migration after project patching, before installation. The install
+phase only fetches from the resulting Bun lockfile. `writableTmpDirAsHomeHook`
+provides a writable home throughout source preparation and fetching.
 
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
@@ -521,6 +524,7 @@ These are Nix derivation attributes. With the overlay, the builder is
 | `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for the installed runtime |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
+| `bunMigrateLockfile` | `false` | Allow migration from another package manager's lockfile when no Bun lockfile is present; also available on `fetchBunDeps` |
 | `bunDepsNativeBuildInputs` | `[]` | Tools/setup hooks explicitly needed for fetching or source preparation, e.g. Git or jq |
 | `bunDepsImpureEnvVars` | `[]` | Names of builder environment variables to expose only to dependency fetching, e.g. registry tokens |
 | `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
@@ -577,8 +581,11 @@ instead of `bunDepsHash`, and `nativeBuildInputs` instead of
 Custom `patchPhase` implementations must call `runHook prePatch` and
 `runHook postPatch`, as in a normal stdenv build. Foreign-lockfile migration
 uses the patched manifests in both the fetcher and package build. When supplying
-`bunDeps` separately, keep the foreign lockfiles, `pnpm-workspace.yaml`, and
-`.yarnrc.yml` consistent with the cached migration inputs.
+`bunDeps` separately, enable `bunMigrateLockfile` on both `buildBunPackage` and
+`fetchBunDeps`, and keep the foreign lockfiles, `pnpm-workspace.yaml`, and
+`.yarnrc.yml` consistent with the cached migration inputs. For independent hook
+use with a migrated cache, add `bunHooks.bunMigrateHook` alongside
+`bunHooks.bunConfigHook` in `nativeBuildInputs`.
 
 ### Native toolchain overrides
 
