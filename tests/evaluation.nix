@@ -1,5 +1,53 @@
 { pkgs, example }:
 {
+  hook-version-validation =
+    let
+      bunWithVersion =
+        version:
+        pkgs.bun.overrideAttrs (_: {
+          inherit version;
+          __intentionallyOverridingVersion = true;
+        });
+      oldBun = bunWithVersion "1.4.3";
+      oldHooks = pkgs.bunHooks.override { bun = oldBun; };
+      minimumHooks = pkgs.bunHooks.override { bun = bunWithVersion "1.4.4"; };
+      evaluates = drv: (builtins.tryEval drv.drvPath).success;
+      oldPackage =
+        args:
+        pkgs.buildBunPackage (
+          {
+            pname = "bun-version-validation";
+            version = "1";
+            bun = oldBun;
+            bunDeps = pkgs.emptyDirectory;
+          }
+          // args
+        );
+    in
+    assert !(evaluates oldHooks.bunConfigHook);
+    assert !(evaluates oldHooks.bunInstallHook);
+    assert !(evaluates oldHooks.bunImportConfigHook);
+    assert evaluates minimumHooks.bunConfigHook;
+    assert evaluates minimumHooks.bunInstallHook;
+    assert evaluates minimumHooks.bunImportConfigHook;
+    assert evaluates oldHooks.bunRuntimeHook;
+    assert evaluates oldHooks.bunBuildHook;
+    assert evaluates oldHooks.bunCheckHook;
+    assert !(evaluates (oldPackage { }));
+    assert
+      !(evaluates (oldPackage {
+        bunConfigHook = pkgs.emptyDirectory;
+      }));
+    assert
+      !(evaluates (oldPackage {
+        bunInstallHook = pkgs.emptyDirectory;
+      }));
+    assert evaluates (oldPackage {
+      bunConfigHook = pkgs.emptyDirectory;
+      bunInstallHook = pkgs.emptyDirectory;
+    });
+    pkgs.runCommand "bun-hook-version-validation" { } "touch $out";
+
   override-evaluation =
     let
       changed = example.overrideAttrs (_: {

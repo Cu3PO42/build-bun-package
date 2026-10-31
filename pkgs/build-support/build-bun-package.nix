@@ -61,10 +61,7 @@ lib.extendMkDerivation {
       ...
     }@args:
     let
-      selectedBun =
-        assert lib.assertMsg (lib.versionAtLeast finalAttrs.bun.version "1.4.4")
-          "buildBunPackage requires Bun >= 1.4.4";
-        finalAttrs.bun;
+      selectedBun = finalAttrs.bun;
       selectedHooks = bunHooks.override {
         bun = selectedBun;
         runtime = finalAttrs.runtime;

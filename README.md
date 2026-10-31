@@ -243,6 +243,8 @@ real-world examples named `example-<name>`, with no default package.
 To use the hooks with `stdenv.mkDerivation`, add the desired hooks from
 `pkgs.bunHooks` to `nativeBuildInputs` and supply `bunDeps`. Each hook propagates
 the Bun package it was configured with.
+The config and install hooks require Bun >= 1.4.4 and check this when selected,
+including when used independently of `buildBunPackage`.
 
 ### Workspaces and nested projects
 

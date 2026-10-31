@@ -69,15 +69,17 @@ rec {
     substitutions.migrateLock = ../migrate-lock.sh;
     meta.license = lib.licenses.mit;
   } ./bun-migrate-hook.sh;
-  bunConfigHook = makeSetupHook {
-    name = "bun-config-hook";
-    propagatedBuildInputs = [
-      bun
-      bunRuntimeHook
-      writableTmpDirAsHomeHook
-    ];
-    meta.license = lib.licenses.mit;
-  } ./bun-config-hook.sh;
+  bunConfigHook =
+    assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4") "bunConfigHook requires Bun >= 1.4.4";
+    makeSetupHook {
+      name = "bun-config-hook";
+      propagatedBuildInputs = [
+        bun
+        bunRuntimeHook
+        writableTmpDirAsHomeHook
+      ];
+      meta.license = lib.licenses.mit;
+    } ./bun-config-hook.sh;
   bunNodeGypHook = makeSetupHook {
     name = "bun-node-gyp-hook";
     propagatedBuildInputs = [
@@ -115,19 +117,22 @@ rec {
     ];
     meta.license = lib.licenses.mit;
   } ./bun-check-hook.sh;
-  bunInstallHook = makeSetupHook {
-    name = "bun-install-hook";
-    meta.license = lib.licenses.mit;
-    propagatedBuildInputs = [
-      bun
-      bunRuntimeHook
-      makeWrapper
-      installShellFiles
-    ];
-    substitutions = {
-      inherit jq;
-      runtime = lib.getExe runtime;
-      inherit runtimeNodeShim;
-    };
-  } ./bun-install-hook.sh;
+  bunInstallHook =
+    assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4")
+      "bunInstallHook requires Bun >= 1.4.4";
+    makeSetupHook {
+      name = "bun-install-hook";
+      meta.license = lib.licenses.mit;
+      propagatedBuildInputs = [
+        bun
+        bunRuntimeHook
+        makeWrapper
+        installShellFiles
+      ];
+      substitutions = {
+        inherit jq;
+        runtime = lib.getExe runtime;
+        inherit runtimeNodeShim;
+      };
+    } ./bun-install-hook.sh;
 }
