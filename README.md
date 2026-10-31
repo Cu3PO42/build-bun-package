@@ -310,13 +310,34 @@ fixups described below. To compile dependencies with node-gyp, enable the option
 }
 ```
 
-node-gyp runs with `buildRuntime` and compiles against headers for `runtime`.
+node-gyp runs with `buildRuntime` and compiles against headers for `nativeRuntime`,
+which defaults to `runtime`.
 For Bun, the headers match its reported Node.js compatibility version; for
 Node.js, they come from the selected Node.js package. Node-API addons can work
 across these runtimes, but matching Node.js versions does not make V8-specific
 addons compatible with Bun. The toolchain supplies Python, node-gyp, and local
 headers; stdenv supplies the compiler. Add package-specific libraries through
 the usual inputs.
+
+For addons used only during the build, target the build runtime explicitly:
+
+```nix
+pkgs.buildBunPackage (finalAttrs: {
+  # The installed application uses Bun; native build tools use Node.js.
+  buildRuntime = pkgs.nodejs;
+  nativeRuntime = finalAttrs.buildRuntime;
+  nodeGyp = true;
+  bunRunScripts = true;
+  # ...
+})
+```
+
+An addon loaded during both build and runtime must be compatible with both
+runtimes. Node-API addons must target an API version supported by each consumer;
+selecting headers does not itself set the addon's `NAPI_VERSION`. Incompatible
+addons need separate builds or dependency trees. `nativeRuntime` changes only
+the native compilation target; `buildRuntime` and `runtime` still select the
+build commands and installed wrappers respectively.
 
 If only a specific setup command is needed, leave automatic scripts disabled
 and run it after dependency shebangs have been patched:
@@ -519,9 +540,10 @@ These are Nix derivation attributes. With the overlay, the builder is
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bun` | provided Bun | Bun package used for fetching and hooks (>= 1.4.4), and for executable wrappers by default |
-| `runtime` | selected `bun` | Runtime for installed wrappers and dependency Node shebangs; selects native addon target headers |
+| `runtime` | selected `bun` | Runtime for installed wrappers and dependency Node shebangs |
 | `buildRuntime` | selected `runtime` | Runtime for Node shebangs and `node` commands during installation/build/check, and for node-gyp itself |
-| `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for the installed runtime |
+| `nativeRuntime` | selected `runtime` | Runtime whose headers and Node.js version are used to compile native addons |
+| `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for `nativeRuntime` |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunMigrateLockfile` | `false` | Allow migration from another package manager's lockfile when no Bun lockfile is present; also available on `fetchBunDeps` |
@@ -594,7 +616,7 @@ Override `bunHooks`' `bunNodeHeaders` or `python3` argument for another
 header set or Python; custom headers must expose `version`. When using the
 hooks independently with another Bun, override their `bun` argument too.
 `buildBunPackage` selects matching hooks automatically through its `bun`,
-`runtime`, and `buildRuntime` attributes. Direct hook users can override these
+`runtime`, `buildRuntime`, and `nativeRuntime` attributes. Direct hook users can override these
 arguments on `bunHooks`, for example
 `(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunInstallHook`.
 

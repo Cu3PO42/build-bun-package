@@ -16,13 +16,14 @@
   writableTmpDirAsHomeHook,
   runtime ? bun,
   buildRuntime ? runtime,
+  nativeRuntime ? runtime,
 }:
 let
   nodeGyp = bunNodeGyp.override {
     inherit bun;
     runtime = buildRuntime;
   };
-  nodeHeaders = if lib.getName runtime == "bun" then bunNodeHeaders else srcOnly runtime;
+  nodeHeaders = if lib.getName nativeRuntime == "bun" then bunNodeHeaders else srcOnly nativeRuntime;
   nodeVersion = nodeHeaders.version;
   nodeShim =
     runtime:

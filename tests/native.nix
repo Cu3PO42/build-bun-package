@@ -16,11 +16,19 @@ let
       test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
       grep -F '${pkgs.lib.getExe finalAttrs.buildRuntime}' "$npm_config_node_gyp"
       test "$npm_config_target" = '${
-        if pkgs.lib.getName finalAttrs.runtime == "bun" then
+        if pkgs.lib.getName finalAttrs.nativeRuntime == "bun" then
           pkgs.bunNodeHeaders.version
         else
-          finalAttrs.runtime.version
+          finalAttrs.nativeRuntime.version
       }'
+      test "$npm_config_nodedir" = '${
+        if pkgs.lib.getName finalAttrs.nativeRuntime == "bun" then
+          pkgs.bunNodeHeaders
+        else
+          pkgs.srcOnly finalAttrs.nativeRuntime
+      }'
+      grep -F "$npm_config_nodedir/" node_modules/native-answer/build/answer.target.mk
+      test "$(node -p "require('native-answer').answer()")" = 42
     '';
     # With local headers, even an unusable download URL must work.
     env.npm_config_disturl = "http://127.0.0.1:9";
@@ -78,6 +86,18 @@ in
   native-node-runtime-bun-build = native-addon.overrideAttrs (_: {
     runtime = pkgs.nodejs_22;
     buildRuntime = pkgs.bun;
+  });
+
+  native-build-target = native-addon.overrideAttrs (
+    finalAttrs: _old: {
+      buildRuntime = pkgs.nodejs_22;
+      nativeRuntime = finalAttrs.buildRuntime;
+    }
+  );
+
+  native-bun-target-node-runtime = native-addon.overrideAttrs (_: {
+    runtime = pkgs.nodejs_22;
+    nativeRuntime = pkgs.bun;
   });
 
   native-node-compatibility =
@@ -149,6 +169,8 @@ in
       mv package.json.new package.json
     '';
     dontBunBuild = true;
+    # This case deliberately leaves the addon unbuilt.
+    preBuild = "";
     installPhase = ''
       test ! -e node_modules/native-answer/build/Release/answer.node
       mkdir -p "$out"

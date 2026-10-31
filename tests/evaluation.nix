@@ -69,6 +69,12 @@
       alternateBuildRuntime = example.overrideAttrs (_: {
         buildRuntime = alternateNodejs;
       });
+      alternateNativeRuntime = example.overrideAttrs (_: {
+        nativeRuntime = alternateNodejs;
+      });
+      changedRuntime = alternateNativeRuntime.overrideAttrs (_: {
+        runtime = pkgs.nodejs;
+      });
       customUpdater = example.overrideAttrs (_: {
         passthru = {
           updateScript = "custom-update";
@@ -120,13 +126,24 @@
     assert builtins.elem (toString alternateBun) (map toString alternate.bunDeps.nativeBuildInputs);
     assert example.runtime == pkgs.bun;
     assert example.buildRuntime == pkgs.bun;
+    assert example.nativeRuntime == pkgs.bun;
     assert alternate.runtime == alternateBun;
     assert alternate.buildRuntime == alternateBun;
+    assert alternate.nativeRuntime == alternateBun;
     assert alternateNode.runtime == alternateNodejs;
     assert alternateNode.buildRuntime == alternateNodejs;
+    assert alternateNode.nativeRuntime == alternateNodejs;
     assert alternateBuildRuntime.runtime == pkgs.bun;
     assert alternateBuildRuntime.buildRuntime == alternateNodejs;
+    assert alternateBuildRuntime.nativeRuntime == pkgs.bun;
     assert alternateBuildRuntime.bunDeps.drvPath == example.bunDeps.drvPath;
+    assert alternateNativeRuntime.runtime == pkgs.bun;
+    assert alternateNativeRuntime.buildRuntime == pkgs.bun;
+    assert alternateNativeRuntime.nativeRuntime == alternateNodejs;
+    assert alternateNativeRuntime.bunDeps.drvPath == example.bunDeps.drvPath;
+    assert alternateNativeRuntime.nativeBuildInputs == example.nativeBuildInputs;
+    assert changedRuntime.nativeRuntime == alternateNodejs;
+    assert changedRuntime.buildRuntime == pkgs.nodejs;
     assert !(example.bunRunScripts or false);
     assert scripted.bunRunScripts;
     assert scripted.bunDeps.drvPath == example.bunDeps.drvPath;
