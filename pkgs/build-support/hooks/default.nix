@@ -41,6 +41,15 @@ rec {
     propagatedBuildInputs = [ bun ];
     substitutions = { inherit buildRuntimeNodeShim; };
   } ./bun-node-fallback-hook.sh;
+  bunFetchMigrateHook = makeSetupHook {
+    name = "bun-fetch-migrate-hook";
+    propagatedBuildInputs = [
+      bun
+      jd-diff-patch
+    ];
+    substitutions.migrateLock = ../migrate-lock.sh;
+    meta.license = lib.licenses.mit;
+  } ./bun-fetch-migrate-hook.sh;
   bunMigrateHook = makeSetupHook {
     name = "bun-migrate-hook";
     propagatedBuildInputs = [ jd-diff-patch ];

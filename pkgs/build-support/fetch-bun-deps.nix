@@ -3,98 +3,83 @@
   stdenvNoCC,
   bun,
   cacert,
-  jd-diff-patch,
+  bunHooks,
+  writableTmpDirAsHomeHook,
 }:
 
-{
-  name ? "bun-deps",
-  hash ? "",
-  bunRoot ? ".",
-  bunFlags ? [ ],
-  bunFetchFlags ? [ ],
-  nativeBuildInputs ? [ ],
-  ...
-}@args:
-assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4") "fetchBunDeps requires Bun >= 1.4.4";
-stdenvNoCC.mkDerivation (
-  finalAttrs:
-  args
-  // {
-    inherit name;
-    inherit
-      bunRoot
-      bunFlags
-      bunFetchFlags
-      ;
-    nativeBuildInputs = nativeBuildInputs ++ [
-      bun
-      cacert
-      jd-diff-patch
-    ];
-    strictDeps = args.strictDeps or true;
-    dontConfigure = true;
-    dontBuild = true;
-    installPhase =
-      args.installPhase or ''
-        runHook preInstall
-        # Isolate Bun's user configuration and write its dependency cache
-        # directly to the fixed-output path, without installing node_modules.
-        export HOME="$TMPDIR/home" BUN_INSTALL_CACHE_DIR="$out" BUN_CONFIG_NO_CLEAR_TERMINAL=1 BUN_INSTALL_GLOBAL_STORE=0
-        mkdir -p "$HOME" "$out"
-        cd "$bunRoot"
-        if [[ -f bun.lock ]]; then lockfile=bun.lock
-        elif [[ -f bun.lockb ]]; then lockfile=bun.lockb
-        else
-          if [[ ! -f npm-shrinkwrap.json && ! -f package-lock.json && ! -f yarn.lock && ! -f pnpm-lock.yaml ]]; then
-            echo "fetchBunDeps: a committed Bun, npm, Yarn, or pnpm lockfile is required" >&2
-            exit 1
+lib.extendMkDerivation {
+  constructDrv = stdenvNoCC.mkDerivation;
+  extendDrvArgs =
+    finalAttrs:
+    {
+      name ? "bun-deps",
+      hash ? "",
+      bunRoot ? ".",
+      bunFlags ? [ ],
+      bunFetchFlags ? [ ],
+      nativeBuildInputs ? [ ],
+      ...
+    }@args:
+    assert lib.assertMsg (lib.versionAtLeast bun.version "1.4.4") "fetchBunDeps requires Bun >= 1.4.4";
+    {
+      inherit name;
+      inherit
+        bunRoot
+        bunFlags
+        bunFetchFlags
+        ;
+      nativeBuildInputs = nativeBuildInputs ++ [
+        bun
+        cacert
+        (bunHooks.override { inherit bun; }).bunFetchMigrateHook
+        writableTmpDirAsHomeHook
+      ];
+      strictDeps = args.strictDeps or true;
+      dontConfigure = true;
+      dontBuild = true;
+      installPhase =
+        args.installPhase or ''
+          runHook preInstall
+          # Write Bun's dependency cache directly to the fixed-output path,
+          # without installing node_modules.
+          export BUN_INSTALL_CACHE_DIR="$out" BUN_CONFIG_NO_CLEAR_TERMINAL=1 BUN_INSTALL_GLOBAL_STORE=0
+          mkdir -p "$out"
+          cd "$bunRoot"
+          if [[ -f bun.lock ]]; then lockfile=bun.lock
+          else lockfile=bun.lockb
           fi
-          # Migration may consult registry metadata and update workspace manifests.
-          # Keep its timestamped registry cache outside the fixed-output path.
-          bash ${./migrate-lock.sh} snapshot "$TMPDIR/bun-migration"
-          migrateFlags=()
-          concatTo migrateFlags bunFlags bunFlagsArray
-          BUN_INSTALL_CACHE_DIR="$TMPDIR/bun-migration-cache" bun pm migrate "''${migrateFlags[@]}"
-          if [[ ! -f bun.lock ]]; then
-            echo "fetchBunDeps: Bun did not produce a migrated bun.lock" >&2
-            exit 1
-          fi
+          # Refuse manifest/lockfile drift even though fetching never saves a lock.
+          # Fetch optional platform variants supported by Bun for a platform-independent cache.
+          fetchFlags=()
+          concatTo fetchFlags bunFlags bunFlagsArray
+          fetchFlags+=(--frozen-lockfile --os '*' --cpu '*' --libc '*')
+          concatTo fetchFlags bunFetchFlags bunFetchFlagsArray
+          bun pm fetch "''${fetchFlags[@]}"
+          # Temporary download/extraction files are not part of the reusable cache.
+          rm -rf "$out/.tmp"
+          # Bun can create absolute aliases to other entries in this cache (for
+          # example, Git dependencies sharing a checkout). Make those links
+          # relative so the content hash does not depend on the output path and
+          # a writable copy of the cache refers to its own entries.
+          while IFS= read -r -d "" link; do
+            target=$(readlink "$link")
+            # -r computes the target relative to the link's parent; -f replaces
+            # the link, and -T prevents following it as a destination directory.
+            ln -srfT "$target" "$link"
+          done < <(find "$out" -type l -lname "$out/*" -print0)
+          # The offline install hook checks the format, version, and exact lockfile
+          # snapshot before using the cache with a package's prepared source.
           mkdir -p "$out/.nix-bun"
-          bash ${./migrate-lock.sh} record "$TMPDIR/bun-migration" "$out/.nix-bun/migration"
-          lockfile=bun.lock
-        fi
-        # Refuse manifest/lockfile drift even though fetching never saves a lock.
-        # Fetch optional platform variants supported by Bun for a platform-independent cache.
-        fetchFlags=()
-        concatTo fetchFlags bunFlags bunFlagsArray
-        fetchFlags+=(--frozen-lockfile --os '*' --cpu '*' --libc '*')
-        concatTo fetchFlags bunFetchFlags bunFetchFlagsArray
-        bun pm fetch "''${fetchFlags[@]}"
-        # Temporary download/extraction files are not part of the reusable cache.
-        rm -rf "$out/.tmp"
-        # Bun can create absolute aliases to other entries in this cache (for
-        # example, Git dependencies sharing a checkout). Make those links
-        # relative so the content hash does not depend on the output path and
-        # a writable copy of the cache refers to its own entries.
-        while IFS= read -r -d "" link; do
-          target=$(readlink "$link")
-          # -r computes the target relative to the link's parent; -f replaces
-          # the link, and -T prevents following it as a destination directory.
-          ln -srfT "$target" "$link"
-        done < <(find "$out" -type l -lname "$out/*" -print0)
-        # The offline install hook checks the format, version, and exact lockfile
-        # snapshot before using the cache with a package's prepared source.
-        mkdir -p "$out/.nix-bun"
-        printf 'extracted-cache\n' > "$out/.nix-bun/format"
-        printf '1\n' > "$out/.nix-bun/format-version"
-        cp "$lockfile" "$out/.nix-bun/$lockfile"
-        runHook postInstall
-      '';
-    outputHash = finalAttrs.hash or hash;
-    outputHashAlgo = if (finalAttrs.hash or hash) == "" then "sha256" else null;
-    outputHashMode = "recursive";
-    # Patch shebangs and binaries only when installing from this pristine cache.
-    dontFixup = true;
-    impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ (args.impureEnvVars or [ ]);
-  }
-)
+          printf 'extracted-cache\n' > "$out/.nix-bun/format"
+          printf '1\n' > "$out/.nix-bun/format-version"
+          cp "$lockfile" "$out/.nix-bun/$lockfile"
+          runHook postInstall
+        '';
+      outputHash = finalAttrs.hash or hash;
+      outputHashAlgo = if (finalAttrs.hash or hash) == "" then "sha256" else null;
+      outputHashMode = "recursive";
+      # Patch shebangs and binaries only when installing from this pristine cache.
+      dontFixup = true;
+      impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ (args.impureEnvVars or [ ]);
+    };
+}

@@ -109,6 +109,31 @@ lib.mapAttrs' (kind: value: lib.nameValuePair "migration-${kind}" value) package
   ) kinds
 )
 // rec {
+  migration-fetch-hook =
+    pkgs.testers.invalidateFetcherByDrvHash
+      (
+        args:
+        (pkgs.fetchBunDeps args).overrideAttrs (old: {
+          installPhase = ''
+            # Migration must also precede a caller's replacement install phase.
+            test -f "$bunRoot/bun.lock"
+            test -f "$out/.nix-bun/migration/version"
+            ${old.installPhase}
+          '';
+        })
+      )
+      {
+        name = "bun-migration-fetch-hook-${pkgs.stdenv.hostPlatform.system}";
+        src = pkgs.runCommand "bun-migration-nested-source" { } ''
+          mkdir -p "$out/project"
+          cp -R ${source "pnpm"}/. "$out/project/"
+        '';
+        bunRoot = "project";
+        hash = hashes.pnpm;
+        prePatch = ''touch "$HOME/writable-before-patching"'';
+        postPatch = ''test ! -f "$bunRoot/bun.lock"'';
+        preInstall = ''test -f "$HOME/writable-before-patching"'';
+      };
   migration-patched-manifests = patched;
   migration-patched-protocol = packages.yarn-protocol.overrideAttrs (old: {
     bunDeps = packages.yarn-protocol.bunDeps;

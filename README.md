@@ -91,6 +91,11 @@ unrelated build-side changes such as scripts and descriptions. Conflicting edits
 fail with the affected manifest; dependency changes still require a matching cache
 and must pass Bun's frozen-lockfile validation.
 
+In the fetcher, `bunHooks.bunFetchMigrateHook` runs migration after project
+patching, before installation. The install phase only fetches from the resulting
+Bun lockfile. `writableTmpDirAsHomeHook` provides a writable home throughout source
+preparation and fetching.
+
 By default, the builder installs dependencies offline with lifecycle scripts
 disabled, runs `bun run build`, and installs the package's publishable files
 and production dependencies. Executables declared in `package.json` receive
@@ -414,7 +419,18 @@ Keep the literal `bunDepsHash` in the package's Nix expression.
 `passthru.updateScript` takes precedence; set it to `null` to disable the default.
 Other passthru attributes are preserved.
 
-Automatic dependency detection without `--custom-dep` is not supported.
+For a standalone `fetchBunDeps` derivation, `nix-update` recognizes its fixed-output
+hash directly; no `--custom-dep` is needed:
+
+```sh
+nix-update my-deps --version=skip
+```
+
+This updates the literal `hash` in the fetcher's expression. When a package
+supplies `bunDeps = fetchBunDeps { ... };` explicitly, `--custom-dep bunDeps` also
+works, provided the hash literal is in that package's expression.
+
+Automatic detection of a package's `bunDeps` without `--custom-dep` is not supported.
 The lower-level `update-source-version` can recalculate the cache with
 `--source-key=bunDeps --ignore-same-version` after updating the source. Neither
 tool regenerates a Bun lockfile: upstream must commit it, or the package must

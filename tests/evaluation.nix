@@ -81,6 +81,15 @@
         bunDepsHash = example.bunDeps.outputHash;
         bunBuildScript = "build";
       });
+      functionalFetcher = pkgs.fetchBunDeps (final: {
+        name = "functional-bun-deps";
+        src = ./fixtures/basic;
+        hash = example.bunDeps.outputHash;
+        passthru.selectedHash = final.hash;
+      });
+      overriddenFunctionalFetcher = functionalFetcher.overrideAttrs (_: {
+        hash = pkgs.lib.fakeHash;
+      });
     in
     assert example.__structuredAttrs;
     assert functional.__structuredAttrs;
@@ -150,5 +159,15 @@
       ));
     assert reused.bunDeps == example.bunDeps;
     assert functional.bunDeps.outputHash == example.bunDeps.outputHash;
+    assert functionalFetcher.outputHash == example.bunDeps.outputHash;
+    assert functionalFetcher.selectedHash == example.bunDeps.outputHash;
+    assert overriddenFunctionalFetcher.outputHash == pkgs.lib.fakeHash;
+    assert overriddenFunctionalFetcher.selectedHash == pkgs.lib.fakeHash;
+    assert builtins.elem (toString pkgs.writableTmpDirAsHomeHook) (
+      map toString functionalFetcher.nativeBuildInputs
+    );
+    assert builtins.elem (toString pkgs.bunHooks.bunFetchMigrateHook) (
+      map toString functionalFetcher.nativeBuildInputs
+    );
     pkgs.runCommand "bun-override-evaluation" { } "touch $out";
 }
