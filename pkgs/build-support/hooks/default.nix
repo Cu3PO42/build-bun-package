@@ -1,9 +1,11 @@
 {
   lib,
   makeSetupHook,
+  replaceVars,
   makeWrapper,
   installShellFiles,
   jq,
+  coreutils,
   jd-diff-patch,
   bun,
   runCommand,
@@ -33,15 +35,25 @@ let
     '';
   buildRuntimeNodeShim = nodeShim buildRuntime;
   runtimeNodeShim = nodeShim runtime;
+  envSplitFixup = replaceVars ./bun-env-s-fixup.sh {
+    inherit buildRuntimeNodeShim runtimeNodeShim;
+  };
 in
 rec {
   inherit buildRuntimeNodeShim;
 
-  bunNodeFallbackHook = makeSetupHook {
-    name = "bun-node-fallback-hook";
+  bunRuntimeHook = makeSetupHook {
+    name = "bun-runtime-hook";
     propagatedBuildInputs = [ bun ];
-    substitutions = { inherit buildRuntimeNodeShim; };
-  } ./bun-node-fallback-hook.sh;
+    substitutions = {
+      inherit
+        buildRuntimeNodeShim
+        runtimeNodeShim
+        coreutils
+        envSplitFixup
+        ;
+    };
+  } ./bun-runtime-hook.sh;
   bunFetchMigrateHook = makeSetupHook {
     name = "bun-fetch-migrate-hook";
     propagatedBuildInputs = [
@@ -61,7 +73,7 @@ rec {
     name = "bun-config-hook";
     propagatedBuildInputs = [
       bun
-      bunNodeFallbackHook
+      bunRuntimeHook
       writableTmpDirAsHomeHook
     ];
     meta.license = lib.licenses.mit;
@@ -70,7 +82,7 @@ rec {
     name = "bun-node-gyp-hook";
     propagatedBuildInputs = [
       nodeGyp
-      bunNodeFallbackHook
+      bunRuntimeHook
       python3
     ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [ cctools ];
@@ -91,7 +103,7 @@ rec {
     name = "bun-build-hook";
     propagatedBuildInputs = [
       bun
-      bunNodeFallbackHook
+      bunRuntimeHook
     ];
     meta.license = lib.licenses.mit;
   } ./bun-build-hook.sh;
@@ -99,7 +111,7 @@ rec {
     name = "bun-check-hook";
     propagatedBuildInputs = [
       bun
-      bunNodeFallbackHook
+      bunRuntimeHook
     ];
     meta.license = lib.licenses.mit;
   } ./bun-check-hook.sh;
@@ -108,7 +120,7 @@ rec {
     meta.license = lib.licenses.mit;
     propagatedBuildInputs = [
       bun
-      bunNodeFallbackHook
+      bunRuntimeHook
       makeWrapper
       installShellFiles
     ];

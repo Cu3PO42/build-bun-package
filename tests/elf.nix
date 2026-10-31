@@ -84,6 +84,11 @@ let
     nativeBuildInputs = [ pkgs.autoPatchelfHook ];
     buildInputs = [ library ];
     bunRunScripts = true;
+    postBunInstall = ''
+      binary=$(find node_modules -type f -path '*/elf-tool/bin/tool' | head -n1)
+      patchelf --print-rpath "$binary" | grep -F '$ORIGIN/'
+      ! patchelf --print-rpath "$binary" | grep -F "$TMPDIR/"
+    '';
     doInstallCheck = true;
     installCheckPhase = ''
       packageOut="$out/lib/node_modules/elf-example"
@@ -114,6 +119,18 @@ pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       test "$(cat "$packageOut/build-ran")" = 42
       test ! -e "$packageOut/node_modules/elf-tool/lifecycle-runs"
       test "$("$packageOut/node_modules/elf-tool/bin/tool")" = 42
+    '';
+  });
+  elf-custom-install = package.overrideAttrs (_: {
+    installPhase = ''
+      mkdir -p "$out/custom"
+      cp -R node_modules "$out/custom/node_modules"
+    '';
+    installCheckPhase = ''
+      sourceTree=$PWD
+      cd "$TMPDIR"
+      rm -rf "$sourceTree" "$BUN_INSTALL_CACHE_DIR"
+      test "$("$out/custom/node_modules/elf-tool/bin/tool")" = 42
     '';
   });
   elf-disabled = pkgs.testers.testBuildFailure' {

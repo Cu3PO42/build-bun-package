@@ -5,18 +5,12 @@
 bunPatchElf() {
     # Reuse the caller's autoPatchelfHook and its library/search-path settings.
     if [[ -z ${dontAutoPatchelf-} ]] && declare -F autoPatchelf >/dev/null; then
-        autoPatchelf "$@"
-    fi
-}
-
-bunFixupElf() {
-    # Early patching can reference libraries inside the build tree or private
-    # cache. Resolve them against the installed outputs before RPATH auditing.
-    # This Nixpkgs function normally runs in postFixup, but also works here:
-    # it patches all existing non-debug outputs and honors dontAutoPatchelf.
-    # Its normal postFixup call still runs after patchelf's RPATH shrinking.
-    if declare -F autoPatchelfPostFixup >/dev/null; then
-        autoPatchelfPostFixup
+        # Bundled libraries must survive copying the prepared tree. Absolute
+        # roots let autoPatchelf recognize them and emit relative $ORIGIN paths.
+        local path
+        local -a paths=() autoPatchelfFlagsArray=("${autoPatchelfFlagsArray[@]}" --relativize-rpath)
+        for path in "$@"; do paths+=("$(realpath "$path")"); done
+        autoPatchelf "${paths[@]}"
     fi
 }
 
@@ -156,4 +150,3 @@ bunConfigHook() {
 }
 
 postPatchHooks+=(bunConfigHook)
-preFixupHooks+=(bunFixupElf)

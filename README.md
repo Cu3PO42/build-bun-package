@@ -287,10 +287,19 @@ different runtime from the installed application:
 }
 ```
 
-The hooks supply a `node` command for `buildRuntime`, taking precedence over
-incidental Node.js inputs. Installed dependency Node shebangs are retargeted to
-`runtime`, so a build-only Node.js reference does not remain in those scripts.
-Installed wrappers also supply that runtime as `node` for child processes.
+The hooks supply a temporary `node` command for `buildRuntime`, taking precedence
+over incidental Node.js inputs. Early shebang patching uses this temporary path
+so stdenv's normal output fixup can select `runtime` later, including after a
+custom install phase. Development outputs follow stdenv's convention and use
+`buildRuntime`. Explicitly pinned store interpreters are preserved. Installed
+wrappers also supply `runtime` as `node` for child processes.
+
+The shared `bunRuntimeHook` configures the build and installed runtimes. It loads
+an internal helper for temporary Node paths after `env -S`, which the pinned
+nixpkgs `patchShebangs` cannot repatch. This helper only rewrites the temporary
+shim in those shebangs and can be removed once upstream supports this case.
+Custom phases must retain the standard `fixupPhase` (or perform their own
+shebang fixup); `dontPatchShebangs` disables both automatic passes.
 
 Bun still fetches, installs, packs, and prunes dependencies, and the build hook
 still invokes `bun run`. That command respects Node.js shebangs and `node`
@@ -374,10 +383,13 @@ through `buildInputs` and configure the usual autoPatchelf settings as needed:
 
 With `bunRunScripts = true`, selected cache packages and project binaries are
 also prepared before lifecycle scripts execute. Foreign platform packages in
-the cache are left untouched. Installed outputs are patched again before
-stdenv audits RPATHs, so bundled libraries resolve from the final output rather
-than a temporary build/cache directory. `dontAutoPatchelf = true` disables this
-behavior and the standard autoPatchelf output fixup.
+the cache are left untouched. Early patching uses autoPatchelf's
+`--relativize-rpath` so bundled libraries use `$ORIGIN` paths that survive copying
+the package tree. Keep the relative layout of binaries and their bundled
+libraries when writing a custom install phase. The standard autoPatchelf output
+fixup still runs; no extra pre-fixup rebasing pass is needed.
+`dontAutoPatchelf = true` disables both early patching and the standard output
+fixup.
 
 For a development shell with the native toolchain, use:
 
@@ -389,8 +401,8 @@ pkgs.mkShell {
 
 Run `bun install` normally, or `node-gyp rebuild` from a package with
 `binding.gyp`. For genuine Node.js, use
-`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunNodeGypHook`. For just Bun and the
-fallback `node` command, use `pkgs.bunHooks.bunNodeFallbackHook` instead.
+`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunNodeGypHook`. For just Bun
+and runtime setup, use `pkgs.bunHooks.bunRuntimeHook` instead.
 
 ### Private registries
 
@@ -733,10 +745,11 @@ with only its manifest and dependencies installed.
 
 ### Runtime and native compatibility
 
-The default hooks add no Node.js, npm, Python, node-gyp, or headers. The fallback
-`node` is a permanent store symlink to Bun, so patched shebangs remain usable
-after the build. The selected `buildRuntime` supplies the `node` command.
-Explicit Bun commands continue to use Bun.
+The default hooks add no Node.js, npm, Python, node-gyp, or headers. During the
+build, the `node` command uses a temporary symlink to `buildRuntime`. Output
+fixup replaces temporary interpreters with permanent store paths, using
+`runtime` for applications and `buildRuntime` for development outputs. Explicit
+Bun commands continue to use Bun.
 
 The optional node-gyp toolchain uses pinned tools and local headers to avoid
 automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,

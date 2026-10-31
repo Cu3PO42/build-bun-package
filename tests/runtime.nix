@@ -48,6 +48,12 @@ let
           console.log(isOdd(Number(process.argv[2])) ? "odd" : "even");
         }
         JS
+        helper=node_modules/is-odd/runtime-helper
+        sed '1c\#!/usr/bin/env node' "$helper" > "$helper-generated"
+        sed '1c\#!/usr/bin/env -S node --no-deprecation' "$helper" > "$helper-generated-split"
+        sed '1c\#!${pkgs.lib.getExe pkgs.nodejs}' "$helper" > "$helper-pinned"
+        sed '1c\#!${pkgs.lib.getExe pkgs.bun}' "$helper" > "$helper-bun"
+        chmod +x "$helper-"*
       '';
       makeWrapperArgs = [
         "--set"
@@ -62,6 +68,13 @@ let
         test "$("$out/bin/bun-example" 3)" = odd
         test "$("$out/lib/node_modules/bun-example/node_modules/is-odd/runtime-helper")" = "$(realpath '${pkgs.lib.getExe final.runtime}')"
         test "$("$out/lib/node_modules/bun-example/node_modules/is-odd/runtime-helper-split")" = "$(realpath '${pkgs.lib.getExe final.runtime}')"
+        helper="$out/lib/node_modules/bun-example/node_modules/is-odd/runtime-helper"
+        test "$("$helper-generated")" = "$(realpath '${pkgs.lib.getExe final.runtime}')"
+        test "$("$helper-generated-split")" = "$(realpath '${pkgs.lib.getExe final.runtime}')"
+        grep -q -- ' --no-deprecation$' "$helper-split"
+        grep -q -- ' --no-deprecation$' "$helper-generated-split"
+        test "$("$helper-pinned")" = "$(realpath '${pkgs.lib.getExe pkgs.nodejs}')"
+        test "$("$helper-bun")" = "$(realpath '${pkgs.lib.getExe pkgs.bun}')"
       '';
     }
   );
@@ -84,23 +97,70 @@ in
     __structuredAttrs = true;
   });
 
-  node-fallback =
-    pkgs.runCommand "bun-node-fallback"
-      {
-        nativeBuildInputs = [ pkgs.bunHooks.bunBuildHook ];
-      }
-      ''
-        test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
-        mkdir -p "$out/bin"
-        cat > "$out/bin/node-script" <<'JS'
-        #!/usr/bin/env node
-        console.log(process.versions.bun);
-        JS
-        chmod +x "$out/bin/node-script"
-        patchShebangs "$out/bin"
-        grep -F '${pkgs.bunHooks.buildRuntimeNodeShim}/bin/node' "$out/bin/node-script"
-        test "$("$out/bin/node-script")" = '${pkgs.bun.version}'
+  custom-install-runtimes = runtimeExample.overrideAttrs (
+    final: _: {
+      buildRuntime = pkgs.nodejs_22;
+      outputs = [
+        "out"
+        "dev"
+      ];
+      outputChecks.out.disallowedReferences = [ final.buildRuntime ];
+      installPhase = ''
+        mkdir -p "$out/custom scripts" "$dev/bin"
+        cp node_modules/is-odd/runtime-helper* "$out/custom scripts/"
+        cp node_modules/is-odd/runtime-helper* "$dev/bin/"
       '';
+      installCheckPhase = ''
+        sourceTree=$PWD
+        cd "$TMPDIR"
+        rm -rf "$sourceTree" "$bunBuildRuntimeBin"
+        for helper in runtime-helper runtime-helper-split runtime-helper-generated runtime-helper-generated-split; do
+          test "$("$out/custom scripts/$helper")" = "$(realpath '${pkgs.lib.getExe final.runtime}')"
+          test "$("$dev/bin/$helper")" = "$(realpath '${pkgs.lib.getExe final.buildRuntime}')"
+        done
+        test "$("$out/custom scripts/runtime-helper-pinned")" = "$(realpath '${pkgs.lib.getExe pkgs.nodejs}')"
+        test "$("$out/custom scripts/runtime-helper-bun")" = "$(realpath '${pkgs.lib.getExe pkgs.bun}')"
+      '';
+      postInstallCheck = "";
+    }
+  );
+
+  static-output-no-runtime = example.overrideAttrs (_: {
+    dontBunBuild = true;
+    doCheck = false;
+    installPhase = ''
+      mkdir -p "$out"
+      cp package.json "$out/manifest.json"
+    '';
+    installCheckPhase = ''test -f "$out/manifest.json"'';
+    disallowedReferences = [ pkgs.bun ];
+  });
+
+  runtime-hook = pkgs.stdenvNoCC.mkDerivation {
+    name = "bun-runtime-hook-test";
+    nativeBuildInputs = [ pkgs.bunHooks.bunRuntimeHook ];
+    dontUnpack = true;
+    dontConfigure = true;
+    dontBuild = true;
+    installPhase = ''
+      test "$(node -p process.versions.bun)" = '${pkgs.bun.version}'
+      mkdir -p "$out/bin"
+      cat > "$out/bin/node-script" <<'JS'
+      #!/usr/bin/env node
+      console.log(process.versions.bun);
+      JS
+      chmod +x "$out/bin/node-script"
+      patchShebangs "$out/bin"
+      grep -F "$bunBuildRuntimeBin/node" "$out/bin/node-script"
+      test "$("$out/bin/node-script")" = '${pkgs.bun.version}'
+    '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      rm -rf "$bunBuildRuntimeBin"
+      grep -F '${pkgs.bunHooks.buildRuntimeNodeShim}/bin/node' "$out/bin/node-script"
+      test "$("$out/bin/node-script")" = '${pkgs.bun.version}'
+    '';
+  };
 
   build-runtime-precedence =
     pkgs.runCommand "bun-build-runtime-precedence"
