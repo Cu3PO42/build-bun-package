@@ -3,7 +3,7 @@
   <code>buildNpmPackage</code>, but for Bun!
 </p>
 <p align="center">
-  <img src="./logo.png" alt="bunflake: a smiling bun shaped like a snowflake with blue crystal accents." width="280">
+  <img src="./logo.png" alt="bunflake: a smiling bun, inspired by the Bun logo, shaped like a snowflake with blue crystal wrapping paper." width="280">
 </p>
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
@@ -13,14 +13,14 @@
 </p>
 
 bunflake packages Bun applications and scripts for Nix through `buildBunPackage`,
-with an interface modeled on Nixpkgs' `buildNpmPackage`. It fetches locked
-dependencies separately and installs them offline during the package build.
+with an interface modeled on Nixpkgs' `buildNpmPackage`.
 
 ## Status
 
-`buildBunPackage` is feature-complete and has been used to package real-world
-applications with Bun's native lockfiles. `importBunLock` and migration from
-other package managers' lockfiles are experimental and have more limited validation.
+`buildBunPackage` is mostly feature-complete and has been used to package real-world applications.
+The most mature path uses a FOD to fetch all dependencies using a Bun lockfile, but migration from NPM, Yarn, and PNPM is also supported experimentally.
+
+`importBunLock` doesn't need a fixed hash and can support overrides, but is also experimental.
 
 The project is young and its public interface may change between updates.
 It is designed with possible upstreaming to Nixpkgs in mind, but there is
@@ -28,16 +28,16 @@ currently no commitment to long-term maintenance.
 
 Bun 1.4.4 or newer is required. Supported systems are `aarch64-darwin`,
 `aarch64-linux`, and `x86_64-linux`; cross compilation is not supported.
-Bun updates may change the dependency cache format and require a new hash.
+
+Since Bun 1.4.4 is the newest version at time of writing, we do not yet know if future updates may change formats and invalidate hashes.
 
 ## AI disclosure
 
 This code was written primarily by LLMs (mostly GPT-6.1 Sol) under my direction.
-The end goal is to have all code (except possibly tests) reviewed by me (a human).
-This is already true for the core logic and as of a prior state it was true for all code, but additional work has introduced new, not fully reviewed code.
-I aim to review and clean this up soon.
+Most code outside of tests has been carefully reviewed by me (a human).
+I strive to close the gap.
 
-The documentation is also at least partially written by AI.
+The documentation is also partially written by AI.
 
 ## Quick start
 
@@ -87,9 +87,8 @@ add `dontBunBuild = true;`.
 
 ## Documentation
 
-The [packaging guide](./docs/packaging.md) explains workflows with examples.
-The [reference](./docs/reference.md) defines public interfaces, defaults, and hook
-contracts. Start with the topic you need:
+The [packaging guide](./docs/packaging.md) is a more comprehensive introduction to building applications with Bun and includes examples.
+The [reference](./docs/reference.md) defines the complete public interfaces and contracts. Start with the topic you need:
 
 | Task | Documentation |
 | --- | --- |
@@ -105,7 +104,7 @@ contracts. Start with the topic you need:
 
 ## Examples
 
-Real-world packages live in [`integration/`](./integration). The
+Real-world packages live in [`integration/`](./integration). They are derived from upstream nixpkgs, but simplified using our build support. The
 [swagger-typescript-api example](./integration/swagger-typescript-api.nix) uses
 the default build and install hooks; [opencode](./integration/opencode.nix)
 shows workspace filtering, dependency patches, and custom installation.
