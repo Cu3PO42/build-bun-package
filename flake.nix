@@ -1,5 +1,5 @@
 {
-  description = "Build Bun projects with an offline, fixed-output dependency cache";
+  description = "bunflake: build Bun projects with an offline, fixed-output dependency cache";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
