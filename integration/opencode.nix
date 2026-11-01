@@ -23,7 +23,6 @@ buildBunPackage (finalAttrs: {
   version = "2.1.1";
 
   strictDeps = true;
-  buildRuntime = nodejs;
 
   src = fetchFromGitHub {
     owner = "anomalyco";
@@ -72,6 +71,7 @@ buildBunPackage (finalAttrs: {
   '';
 
   nativeBuildInputs = [
+    nodejs
     installShellFiles
     makeBinaryWrapper
     writableTmpDirAsHomeHook

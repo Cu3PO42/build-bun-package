@@ -5,7 +5,7 @@
   stdenv,
   runtime ? bun,
 }:
-buildBunPackage {
+buildBunPackage (finalAttrs: {
   pname = "bun-node-gyp";
   version = (lib.importJSON ./source/package.json).dependencies.node-gyp;
   inherit bun;
@@ -13,6 +13,8 @@ buildBunPackage {
   src = ./source;
   bunDepsHash = "sha256-4QskgdxeYqkRXvJ9GD3S0LqaSZDZXFk1l+L6Q/xb0u0=";
   dontBunBuild = true;
+
+  passthru.nodeGypScript = "${finalAttrs.finalPackage}/lib/node_modules/bun-node-gyp/node_modules/node-gyp/bin/node-gyp.js";
 
   # Match Nixpkgs' deterministic Xcode/CLT fallback.
   postBunInstall = lib.optionalString stdenv.hostPlatform.isDarwin ''
@@ -27,4 +29,4 @@ buildBunPackage {
     license = lib.licenses.mit;
     mainProgram = "node-gyp";
   };
-}
+})

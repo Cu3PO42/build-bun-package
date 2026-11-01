@@ -27,7 +27,7 @@ It is possible that the hash for the dependency FOD will change with Bun updates
 
 - Install scripts are opt-in: Set `bunRunScripts = true` to enable them, subject to Bun's trusted-dependency rules.
   There is no equivalent to `npmRebuildFlags`: Bun runs scripts through a forced install after dependency preparation.
-- By default, Bun executes scripts. Set `runtime = pkgs.nodejs;` to use Node.js throughout, or `buildRuntime` to select it only for build scripts.
+- Commands invoking `node` use Node.js when available, otherwise Bun supplies the fallback. Add `pkgs.nodejs` to `nativeBuildInputs` when build tools need Node.js.
 - Executable project files, including local and workspace helpers, have their shebangs patched before installation.
 - The default install phase creates executable wrappers using Bun. Set `runtime = pkgs.nodejs;` to use Node.js instead.
 - Workspace selection uses a directory instead of a package name: `bunWorkspace` is relative to `bunRoot`, i.e. the folder in which the lockfile is located.
@@ -269,9 +269,8 @@ still apply, and an explicit `--ignore-scripts` in `bunInstallFlags` or upstream
 configuration can still disable scripts. This option controls installation;
 the build hook runs independently, and packing always skips scripts.
 
-The default runtime is the selected `bun` package. Set `runtime` to Node.js to
-use it for installed wrappers, dependency Node shebangs, and `node` commands
-during installation, builds, and checks:
+The installed runtime defaults to the selected `bun` package. Set `runtime` to
+Node.js for installed wrappers, dependency Node shebangs, and `node` subprocesses:
 
 ```nix
 {
@@ -279,35 +278,35 @@ during installation, builds, and checks:
 }
 ```
 
-`buildRuntime` defaults to `runtime`. Override it when build tools need a
-different runtime from the installed application:
+A Node.js `runtime` is also made available during the build. To use Node.js only
+for building while keeping Bun for the installed application, add it to the
+usual build inputs:
 
 ```nix
 {
-  # The installed application runs with Bun; build tools use Node.js.
-  buildRuntime = pkgs.nodejs-slim;
+  nativeBuildInputs = [ pkgs.nodejs-slim ];
 }
 ```
 
-The hooks supply a temporary `node` command for `buildRuntime`, taking precedence
-over incidental Node.js inputs. Early shebang patching uses this temporary path
-so stdenv's normal output fixup can select `runtime` later, including after a
-custom install phase. Development outputs follow stdenv's convention and use
-`buildRuntime`. Explicitly pinned store interpreters are preserved. Installed
-wrappers also supply `runtime` as `node` for child processes.
+The shared `bunRuntimeHook` preserves the build's existing `node` command and
+adds a Bun alias only when Node.js is absent. Shell phases and lifecycle scripts
+use the same build environment. Installed wrappers supply `runtime` as `node`
+for child processes.
 
-The shared `bunRuntimeHook` configures the build and installed runtimes. It loads
-an internal helper for temporary Node paths after `env -S`, which the pinned
-nixpkgs `patchShebangs` cannot repatch. This helper only rewrites the temporary
-shim in those shebangs and can be removed once upstream supports this case.
-Custom phases must retain the standard `fixupPhase` (or perform their own
-shebang fixup); `dontPatchShebangs` disables both automatic passes.
+Early shebang patching uses build interpreters. An output fixup hook runs
+`patchShebangs --host --update` to select `runtime` for installed Node shebangs,
+including previously patched store paths and files copied by custom install
+phases. Development outputs use the build environment with `--build --update`.
+A small helper handles absolute commands after `env -S`, which the pinned
+nixpkgs `patchShebangs` cannot repatch. Custom phases must retain the standard
+`fixupPhase` (or perform their own shebang fixup); `dontPatchShebangs` disables
+automatic output patching.
 
 Bun still fetches, installs, packs, and prunes dependencies, and the build hook
-still invokes `bun run`. That command respects Node.js shebangs and `node`
-commands using the build's `PATH`. Explicit `bun` commands and direct source-file
-execution use Bun; `--bun` or `run.bun = true` in `bunfig.toml` can also force Bun
-for scripts even when Node.js is available.
+invokes `bun run`. Explicit `bun` commands and direct source-file execution use
+Bun. `--bun` or `run.bun = true` in `bunfig.toml` can force Bun for commands
+resolved through `PATH`. A Node shebang already patched to an absolute
+interpreter still uses that interpreter during the build.
 
 Bun can load prebuilt Node-API addons directly; Linux binaries may need the ELF
 fixups described below. To compile dependencies with node-gyp, enable the optional toolchain:
@@ -321,34 +320,39 @@ fixups described below. To compile dependencies with node-gyp, enable the option
 }
 ```
 
-node-gyp runs with `buildRuntime` and compiles against headers for `nativeRuntime`,
-which defaults to `runtime`.
-For Bun, the headers match its reported Node.js compatibility version; for
-Node.js, they come from the selected Node.js package. Node-API addons can work
-across these runtimes, but matching Node.js versions does not make V8-specific
-addons compatible with Bun. The toolchain supplies Python, node-gyp, and local
-headers; stdenv supplies the compiler. Add package-specific libraries through
-the usual inputs.
+node-gyp runs with the build environment's `node` command and compiles against
+headers for `nodeGypTarget`, which defaults to `runtime`. Changing the target
+does not change the interpreter executing node-gyp or other build commands.
+For a Bun target, the hooks prefer its `nodeHeaders` property and fall back to
+`pkgs.bunNodeHeaders` when that property is absent. Our Bun package exposes these
+headers through `passthru.nodeHeaders`. For a Node.js target, the headers come
+from that package's source.
 
-For addons used only during the build, target the build runtime explicitly:
+The hook compares the selected Bun target's reported Node.js compatibility
+version with the headers' version. A mismatch emits a build-log warning with
+both versions and the headers path; it does not fail the build. Stable Node-API
+addons can remain compatible across header releases. Their targeted API version
+must be supported by each runtime that loads them, and matching Node.js versions
+does not make V8-specific addons compatible with Bun.
+
+The toolchain supplies Python, node-gyp, and local headers; stdenv supplies the
+compiler. Add package-specific libraries through the usual inputs. For addons
+used only by Node.js build tools, select that compilation target explicitly:
 
 ```nix
-pkgs.buildBunPackage (finalAttrs: {
-  # The installed application uses Bun; native build tools use Node.js.
-  buildRuntime = pkgs.nodejs;
-  nativeRuntime = finalAttrs.buildRuntime;
+{
+  nativeBuildInputs = [ pkgs.nodejs ];
+  nodeGypTarget = pkgs.nodejs;
   nodeGyp = true;
   bunRunScripts = true;
-  # ...
-})
+  # The installed application still uses Bun.
+}
 ```
 
 An addon loaded during both build and runtime must be compatible with both
-runtimes. Node-API addons must target an API version supported by each consumer;
-selecting headers does not itself set the addon's `NAPI_VERSION`. Incompatible
-addons need separate builds or dependency trees. `nativeRuntime` changes only
-the native compilation target; `buildRuntime` and `runtime` still select the
-build commands and installed wrappers respectively.
+consumers. Selecting headers does not itself set an addon's `NAPI_VERSION`.
+Incompatible addons need separate builds or dependency trees. Use install checks
+to exercise the application's actual native addons with the final runtime.
 
 If only a specific setup command is needed, leave automatic scripts disabled
 and run it after dependency shebangs have been patched:
@@ -402,8 +406,8 @@ pkgs.mkShell {
 ```
 
 Run `bun install` normally, or `node-gyp rebuild` from a package with
-`binding.gyp`. For genuine Node.js, use
-`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunNodeGypHook`. For just Bun
+`binding.gyp`. For Node.js execution and headers, add `pkgs.nodejs` alongside
+`(pkgs.bunHooks.override { nodeGypTarget = pkgs.nodejs; }).bunNodeGypHook`. For just Bun
 and runtime setup, use `pkgs.bunHooks.bunRuntimeHook` instead.
 
 ### Private registries
@@ -555,9 +559,8 @@ These are Nix derivation attributes. With the overlay, the builder is
 | --- | --- | --- |
 | `bun` | provided Bun | Bun package used for fetching and hooks (>= 1.4.4), and for executable wrappers by default |
 | `runtime` | selected `bun` | Runtime for installed wrappers and dependency Node shebangs |
-| `buildRuntime` | selected `runtime` | Runtime for Node shebangs and `node` commands during installation/build/check, and for node-gyp itself |
-| `nativeRuntime` | selected `runtime` | Runtime whose headers and Node.js version are used to compile native addons |
-| `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for `nativeRuntime` |
+| `nodeGypTarget` | selected `runtime` | Target whose headers and Node.js version are used to compile native addons; does not select the build interpreter |
+| `nodeGyp` | `false` | Add standalone node-gyp, Python and headers for `nodeGypTarget` |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
 | `bunMigrateLockfile` | `false` | Allow migration from another package manager's lockfile when no Bun lockfile is present; also available on `fetchBunDeps` |
@@ -626,11 +629,13 @@ use with a migrated cache, add `bunHooks.bunMigrateHook` alongside
 ### Native toolchain overrides
 
 The standalone helpers are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`.
-Override `bunHooks`' `bunNodeHeaders` or `python3` argument for another
-header set or Python; custom headers must expose `version`. When using the
-hooks independently with another Bun, override their `bun` argument too.
+To attach custom headers to a Bun target, set its `passthru.nodeHeaders`;
+header derivations must expose `version`. Override `bunHooks`' `bunNodeHeaders`
+argument to change the fallback used by Bun targets without that property, or
+its `python3` argument to use another Python. When using hooks independently
+with another Bun, override their `bun` argument too.
 `buildBunPackage` selects matching hooks automatically through its `bun`,
-`runtime`, `buildRuntime`, and `nativeRuntime` attributes. Direct hook users can override these
+`runtime`, and `nodeGypTarget` attributes. Direct hook users can override these
 arguments on `bunHooks`, for example
 `(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunInstallHook`.
 
@@ -747,23 +752,25 @@ with only its manifest and dependencies installed.
 
 ### Runtime and native compatibility
 
-The default hooks add no Node.js, npm, Python, node-gyp, or headers. During the
-build, the `node` command uses a temporary symlink to `buildRuntime`. Output
-fixup replaces temporary interpreters with permanent store paths, using
-`runtime` for applications and `buildRuntime` for development outputs. Explicit
-Bun commands continue to use Bun.
+The default Bun hooks add no Node.js, npm, Python, node-gyp, or headers. During
+the build, an existing `node` command takes priority over the Bun fallback.
+A Node.js `runtime` also supplies Node.js during building. Output fixup updates
+store interpreters to use `runtime` for applications and the build environment
+for development outputs. Explicit Bun commands continue to use Bun.
 
 The optional node-gyp toolchain uses pinned tools and local headers to avoid
 automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,
 `npm_config_target`, and `npm_config_python`; Bun's lifecycle trust rules still
-apply. Darwin uses cctools and Nixpkgs' deterministic Xcode-version fallback.
+apply. Its launcher uses `node` from `PATH`, independently of `nodeGypTarget`.
+Darwin uses cctools and Nixpkgs' deterministic Xcode-version fallback.
 Bun supports Node-API addons; V8-specific addons may require changes.
 
 Standalone node-gyp is itself built with `buildBunPackage` and a committed
 lockfile, keeping dependency resolution in Bun instead of maintaining a custom
-archive list and installer. Its headers match the pinned Bun's reported
-`process.versions.node`, independently of a Node.js runtime package; a flake
-check verifies the versions match.
+archive list and installer. Our Bun package exposes pinned headers matching its
+reported `process.versions.node`; a flake check verifies this default pairing.
+Consumer builds warn about differing versions rather than rejecting potentially
+compatible Node-API addons.
 
 ### Verification boundaries
 

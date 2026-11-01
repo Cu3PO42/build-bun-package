@@ -69,14 +69,13 @@ assert self.packages.${system}.example-filen-cli.bun.drvPath == pkgs.bun.drvPath
 assert (self.packages.${system} ? example-equibop) == pkgs.stdenv.hostPlatform.isLinux;
 assert example.bun.drvPath == pkgs.bun.drvPath;
 assert example.runtime.drvPath == pkgs.bun.drvPath;
-assert example.buildRuntime.drvPath == pkgs.bun.drvPath;
-assert example.nativeRuntime.drvPath == pkgs.bun.drvPath;
+assert example.nodeGypTarget.drvPath == pkgs.bun.drvPath;
 assert builtins.elem pkgs.bunHooks.bunNodeGypHook.drvPath (
   map (input: input.drvPath) example.nativeBuildInputs
 );
 assert extendedPackage.bun.drvPath == alternateBun.drvPath;
 assert extendedPackage.runtime.drvPath == alternateBun.drvPath;
-assert extendedPackage.nativeRuntime.drvPath == alternateBun.drvPath;
+assert extendedPackage.nodeGypTarget.drvPath == alternateBun.drvPath;
 assert builtins.elem alternateBun.drvPath (
   map (input: input.drvPath) extendedPackage.bunDeps.nativeBuildInputs
 );

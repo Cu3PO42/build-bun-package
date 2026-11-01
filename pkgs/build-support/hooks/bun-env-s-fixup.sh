@@ -1,29 +1,24 @@
 # shellcheck shell=bash
-# prefix, output, and outputDev are supplied by stdenv's output fixup.
-# shellcheck disable=SC2154
 
 # Work around patchShebangs leaving an absolute command after env -S untouched,
-# even with --update. Ordinary shebangs are handled by stdenv itself. This helper
-# can be removed when upstream supports repatching env -S commands.
+# even with --update. Resolve the command by basename, as patchShebangs does for
+# ordinary shebangs. Remove this helper when upstream supports this case.
 bunFixupEnvSplitShebangs() {
-    if [[ -n ${dontPatchShebangs-} || ! -e $prefix || -z ${bunBuildRuntimeBin-} ]]; then
-        return
-    fi
-    local file line timestamp node=@runtimeNodeShim@/bin/node
-    if [[ $output != out && $output == "$outputDev" ]]; then
-        node=@buildRuntimeNodeShim@/bin/node
-    fi
+    local searchPath=$1 prefix=$2
+    local file line timestamp interpreter split command args newCommand newInterpreter newLine
     while IFS= read -r -d "" file; do
         isScript "$file" || continue
         IFS= read -r line <"$file" || [[ -n $line ]]
-        if [[ $line == '#!'*'/bin/env -S '"$bunBuildRuntimeBin/node"* ]]; then
-            timestamp=$(stat --printf '%y' "$file")
-            line=${line//"$bunBuildRuntimeBin/node"/"$node"}
-            line=${line//\\/\\\\}
-            sed -i "1c\\$line" "$file"
-            touch --date "$timestamp" "$file"
-        fi
+        read -r interpreter split command args <<<"${line:2}"
+        [[ $interpreter == */bin/env && $split == -S && $command == /* ]] || continue
+        newCommand=$(PATH="$searchPath" type -P "${command##*/}" || true)
+        [[ -n $newCommand ]] || continue
+        newInterpreter=$(PATH="$searchPath" type -P env || true)
+        newLine="#!${newInterpreter:-$interpreter} -S $newCommand${args:+ $args}"
+        [[ $newLine != "$line" ]] || continue
+        timestamp=$(stat --printf '%y' "$file")
+        newLine=${newLine//\\/\\\\}
+        sed -i "1c\\$newLine" "$file"
+        touch --date "$timestamp" "$file"
     done < <(find "$prefix" -type f -perm -0100 ! -name bun.lockb -print0)
 }
-
-fixupOutputHooks=(bunFixupEnvSplitShebangs "${fixupOutputHooks[@]}")

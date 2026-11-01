@@ -65,6 +65,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     '';
 
   passthru = {
+    nodeHeaders = bunNodeHeaders;
     sources = {
       "aarch64-darwin" = fetchurl {
         url = "https://github.com/oven-sh/bun/releases/download/bun-v${finalAttrs.version}/bun-darwin-aarch64.zip";
@@ -82,12 +83,12 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     updateScript = callPackage ./update.nix { inherit (finalAttrs) version; };
     tests.node-headers = runCommand "bun-node-headers-version" { } ''
       actual=$(${lib.getExe finalAttrs.finalPackage} -p process.versions.node)
-      expected=${lib.escapeShellArg bunNodeHeaders.version}
+      expected=${lib.escapeShellArg finalAttrs.finalPackage.nodeHeaders.version}
       if [ "$actual" != "$expected" ]; then
         echo "Bun reports Node $actual, but bunNodeHeaders provides $expected; run bun.updateScript" >&2
         exit 1
       fi
-      test -f ${bunNodeHeaders}/include/node/node_api.h
+      test -f ${finalAttrs.finalPackage.nodeHeaders}/include/node/node_api.h
       touch "$out"
     '';
   };

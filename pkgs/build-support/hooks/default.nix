@@ -1,7 +1,6 @@
 {
   lib,
   makeSetupHook,
-  replaceVars,
   makeWrapper,
   installShellFiles,
   jq,
@@ -9,6 +8,7 @@
   jd-diff-patch,
   bun,
   runCommand,
+  writeShellScriptBin,
   bunNodeGyp,
   bunNodeHeaders,
   python3,
@@ -17,15 +17,18 @@
   srcOnly,
   writableTmpDirAsHomeHook,
   runtime ? bun,
-  buildRuntime ? runtime,
-  nativeRuntime ? runtime,
+  nodeGypTarget ? runtime,
 }:
 let
-  nodeGyp = bunNodeGyp.override {
-    inherit bun;
-    runtime = buildRuntime;
-  };
-  nodeHeaders = if lib.getName nativeRuntime == "bun" then bunNodeHeaders else srcOnly nativeRuntime;
+  # The standalone package's wrapper pins its runtime. Build-time node-gyp
+  # instead follows PATH, including the runtime hook's conditional Bun fallback.
+  nodeGypPackage = bunNodeGyp.override { inherit bun; };
+  nodeGyp = writeShellScriptBin "node-gyp" ''
+    exec node ${nodeGypPackage.nodeGypScript} "$@"
+  '';
+  targetIsBun = lib.getName nodeGypTarget == "bun";
+  nodeHeaders =
+    if targetIsBun then nodeGypTarget.nodeHeaders or bunNodeHeaders else srcOnly nodeGypTarget;
   nodeVersion = nodeHeaders.version;
   nodeShim =
     runtime:
@@ -33,25 +36,20 @@ let
       mkdir -p "$out/bin"
       ln -s ${lib.getExe runtime} "$out/bin/node"
     '';
-  buildRuntimeNodeShim = nodeShim buildRuntime;
+  bunNodeShim = nodeShim bun;
   runtimeNodeShim = nodeShim runtime;
-  envSplitFixup = replaceVars ./bun-env-s-fixup.sh {
-    inherit buildRuntimeNodeShim runtimeNodeShim;
-  };
 in
 rec {
-  inherit buildRuntimeNodeShim;
-
   bunRuntimeHook = makeSetupHook {
     name = "bun-runtime-hook";
-    propagatedBuildInputs = [ bun ];
+    propagatedBuildInputs = [ bun ] ++ lib.optional (lib.getName runtime != "bun") runtime;
     substitutions = {
       inherit
-        buildRuntimeNodeShim
+        bunNodeShim
         runtimeNodeShim
         coreutils
-        envSplitFixup
         ;
+      envSplitFixup = ./bun-env-s-fixup.sh;
     };
   } ./bun-runtime-hook.sh;
   bunFetchMigrateHook = makeSetupHook {
@@ -91,6 +89,8 @@ rec {
     substitutions = {
       nodeGyp = lib.getExe nodeGyp;
       inherit nodeHeaders nodeVersion;
+      nodeGypTarget = lib.getExe nodeGypTarget;
+      checkBunHeaders = lib.boolToString targetIsBun;
       python = lib.getExe python3;
     };
     meta.license = lib.licenses.mit;

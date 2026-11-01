@@ -30,10 +30,8 @@ lib.extendMkDerivation {
       bun ? topLevelArgs.bun,
       # Runtime for installed executables and Node subprocesses.
       runtime ? finalAttrs.bun,
-      # Runtime for Node commands during the build, including lifecycle scripts.
-      buildRuntime ? finalAttrs.runtime,
-      # Runtime whose headers are used to compile native addons.
-      nativeRuntime ? finalAttrs.runtime,
+      # Target whose headers are used to compile native addons with node-gyp.
+      nodeGypTarget ? finalAttrs.runtime,
       # Enable node-gyp and its native build tools.
       nodeGyp ? false,
       # Workspace directory relative to bunRoot to build and install.
@@ -65,16 +63,14 @@ lib.extendMkDerivation {
       selectedHooks = bunHooks.override {
         bun = selectedBun;
         runtime = finalAttrs.runtime;
-        buildRuntime = finalAttrs.buildRuntime;
-        nativeRuntime = finalAttrs.nativeRuntime;
+        nodeGypTarget = finalAttrs.nodeGypTarget;
       };
     in
     {
       inherit
         bun
         runtime
-        buildRuntime
-        nativeRuntime
+        nodeGypTarget
         bunBuildScript
         bunMigrateLockfile
         ;

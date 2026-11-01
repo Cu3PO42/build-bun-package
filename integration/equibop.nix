@@ -24,7 +24,6 @@ buildBunPackage (finalAttrs: {
   pname = "equibop";
   version = "3.2.2";
   strictDeps = true;
-  buildRuntime = nodejs;
 
   src = fetchFromGitHub {
     owner = "Equicord";
@@ -65,6 +64,7 @@ buildBunPackage (finalAttrs: {
   autoPatchelfIgnoreMissingDeps = [ "libc.musl-*.so.*" ];
 
   nativeBuildInputs = [
+    nodejs
     autoPatchelfHook
     copyDesktopItems
     jq

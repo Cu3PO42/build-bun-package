@@ -1,43 +1,44 @@
 { pkgs, example }:
 let
-  native-addon = pkgs.buildBunPackage (finalAttrs: {
-    pname = "bun-native-example";
-    version = "1";
-    src = ./fixtures/native;
-    nodeGyp = true;
-    bunRunScripts = true;
-    bunBuildFlags = pkgs.lib.optionals (pkgs.lib.getName finalAttrs.runtime != "bun") [
-      "--target=node"
-      "--format=cjs"
-    ];
-    bunDepsHash = "sha256-TU9oKkzKK4Pq10Xfs0qljTGljgErGbewPjbGQSyZx/s=";
-    preBuild = ''
-      test "$(node -p process.execPath)" = "$(realpath '${pkgs.lib.getExe finalAttrs.buildRuntime}')"
-      test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
-      grep -F '${pkgs.lib.getExe finalAttrs.buildRuntime}' "$npm_config_node_gyp"
-      test "$npm_config_target" = '${
-        if pkgs.lib.getName finalAttrs.nativeRuntime == "bun" then
-          pkgs.bunNodeHeaders.version
+  native-addon = pkgs.buildBunPackage (
+    finalAttrs:
+    let
+      buildNode = finalAttrs.passthru.expectedBuildNode or finalAttrs.runtime;
+      targetHeaders =
+        if pkgs.lib.getName finalAttrs.nodeGypTarget == "bun" then
+          finalAttrs.nodeGypTarget.nodeHeaders or pkgs.bunNodeHeaders
         else
-          finalAttrs.nativeRuntime.version
-      }'
-      test "$npm_config_nodedir" = '${
-        if pkgs.lib.getName finalAttrs.nativeRuntime == "bun" then
-          pkgs.bunNodeHeaders
-        else
-          pkgs.srcOnly finalAttrs.nativeRuntime
-      }'
-      grep -F "$npm_config_nodedir/" node_modules/native-answer/build/answer.target.mk
-      test "$(node -p "require('native-answer').answer()")" = 42
-    '';
-    # With local headers, even an unusable download URL must work.
-    env.npm_config_disturl = "http://127.0.0.1:9";
-    doInstallCheck = true;
-    installCheckPhase = ''
-      test "$("$out/bin/bun-native-example")" = 42
-      test "$(${pkgs.lib.getExe finalAttrs.runtime} -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
-    '';
-  });
+          pkgs.srcOnly finalAttrs.nodeGypTarget;
+    in
+    {
+      pname = "bun-native-example";
+      version = "1";
+      src = ./fixtures/native;
+      nodeGyp = true;
+      bunRunScripts = true;
+      bunBuildFlags = pkgs.lib.optionals (pkgs.lib.getName finalAttrs.runtime != "bun") [
+        "--target=node"
+        "--format=cjs"
+      ];
+      bunDepsHash = "sha256-TU9oKkzKK4Pq10Xfs0qljTGljgErGbewPjbGQSyZx/s=";
+      preBuild = ''
+        test "$(node -p process.execPath)" = "$(realpath '${pkgs.lib.getExe buildNode}')"
+        test "$("$npm_config_node_gyp" --version)" = 'v13.1.0'
+        grep -F 'exec node ' "$npm_config_node_gyp"
+        test "$npm_config_target" = '${targetHeaders.version}'
+        test "$npm_config_nodedir" = '${targetHeaders}'
+        grep -F "$npm_config_nodedir/" node_modules/native-answer/build/answer.target.mk
+        test "$(node -p "require('native-answer').answer()")" = 42
+      '';
+      # With local headers, even an unusable download URL must work.
+      env.npm_config_disturl = "http://127.0.0.1:9";
+      doInstallCheck = true;
+      installCheckPhase = ''
+        test "$("$out/bin/bun-native-example")" = 42
+        test "$(${pkgs.lib.getExe finalAttrs.runtime} -p "require('$out/lib/node_modules/bun-native-example/node_modules/native-answer').answer()")" = 42
+      '';
+    }
+  );
 in
 {
   node-headers-version = pkgs.bun.tests.node-headers;
@@ -79,26 +80,76 @@ in
     runtime = pkgs.nodejs;
   });
 
-  native-bun-runtime-node-build = native-addon.overrideAttrs (_: {
-    buildRuntime = pkgs.nodejs_22;
+  native-bun-runtime-node-build = native-addon.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.nodejs_22 ];
+    passthru.expectedBuildNode = pkgs.nodejs_22;
   });
 
-  native-node-runtime-bun-build = native-addon.overrideAttrs (_: {
+  native-node-runtime-alternate-node-build = native-addon.overrideAttrs (old: {
     runtime = pkgs.nodejs_22;
-    buildRuntime = pkgs.bun;
+    nativeBuildInputs = [ pkgs.nodejs ] ++ old.nativeBuildInputs;
+    passthru.expectedBuildNode = pkgs.nodejs;
   });
 
-  native-build-target = native-addon.overrideAttrs (
-    finalAttrs: _old: {
-      buildRuntime = pkgs.nodejs_22;
-      nativeRuntime = finalAttrs.buildRuntime;
-    }
-  );
+  native-build-target = native-addon.overrideAttrs (old: {
+    nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.nodejs_22 ];
+    passthru.expectedBuildNode = pkgs.nodejs_22;
+    nodeGypTarget = pkgs.nodejs_22;
+  });
 
   native-bun-target-node-runtime = native-addon.overrideAttrs (_: {
     runtime = pkgs.nodejs_22;
-    nativeRuntime = pkgs.bun;
+    nodeGypTarget = pkgs.bun;
   });
+
+  # Different header releases can still produce a compatible Node-API addon.
+  native-attached-headers = native-addon.overrideAttrs (_: {
+    nodeGypTarget = pkgs.bun.overrideAttrs (old: {
+      passthru = old.passthru // {
+        nodeHeaders = pkgs.srcOnly pkgs.nodejs_22;
+      };
+    });
+  });
+
+  node-gyp-header-property =
+    let
+      hooks = pkgs.bunHooks.override {
+        # The target's attached headers take precedence over the fallback.
+        bunNodeHeaders = pkgs.bunNodeHeaders // {
+          version = "0.0.0";
+        };
+      };
+    in
+    pkgs.runCommand "bun-node-gyp-header-property" { nativeBuildInputs = [ hooks.bunNodeGypHook ]; } ''
+      test "$npm_config_nodedir" = '${pkgs.bun.nodeHeaders}'
+      test "$npm_config_target" = '${pkgs.bun.nodeHeaders.version}'
+      bunCheckNodeGypHeaders 2> warning
+      test ! -s warning
+      touch "$out"
+    '';
+
+  node-gyp-fallback-header-warning =
+    let
+      hooks = pkgs.bunHooks.override {
+        nodeGypTarget = builtins.removeAttrs pkgs.bun [ "nodeHeaders" ];
+        bunNodeHeaders = pkgs.bunNodeHeaders // {
+          version = "0.0.0";
+        };
+      };
+    in
+    pkgs.runCommand "bun-node-gyp-fallback-header-warning"
+      { nativeBuildInputs = [ hooks.bunNodeGypHook ]; }
+      ''
+        test "$npm_config_nodedir" = '${pkgs.bunNodeHeaders}'
+        test "$npm_config_target" = '0.0.0'
+        bunCheckNodeGypHeaders 2> warning
+        actual=$(${pkgs.lib.getExe pkgs.bun} -p process.versions.node)
+        grep -F "target Bun reports Node $actual" warning
+        grep -F 'provides Node 0.0.0 headers' warning
+        grep -F '${pkgs.bunNodeHeaders}' warning
+        node-gyp --version
+        touch "$out"
+      '';
 
   native-node-compatibility =
     pkgs.runCommand "bun-native-node-compatibility"
