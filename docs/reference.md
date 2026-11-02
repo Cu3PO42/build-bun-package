@@ -2,41 +2,32 @@
 
 [README](../README.md) · [Packaging guide](./packaging.md) · [Reference](./reference.md) · [Design](./design.md) · [Contributing](../CONTRIBUTING.md)
 
-- [Package-set integration](#package-set-integration)
-- [buildBunPackage](#buildbunpackage)
-- [fetchBunDeps](#fetchbundeps)
-- [importBunLock](#importbunlock)
-- [Flags and custom phases](#flags-and-custom-phases)
-- [Dependency preparation hooks](#dependency-preparation-hooks)
-- [Shebang fixup](#shebang-fixup)
-- [Native toolchain overrides](#native-toolchain-overrides)
+This reference defines the builder attributes and the hooks they select. For a
+walkthrough and examples, start with the [packaging guide](./packaging.md).
 
-## Package-set integration
-
-Apply `bunflake.overlays.default` to use your own Nixpkgs package set and access
-`pkgs.buildBunPackage`. The overlay replaces `pkgs.bun` only when this
-repository's Bun is newer. Nixpkgs follows `nixos-unstable`, with its revision
-recorded in `flake.lock`.
-
-Without the overlay, `bunflake.legacyPackages.${system}` exposes `bun`,
-`buildBunPackage`, `fetchBunDeps`, `importBunLock`, `bunNodeGyp`, `bunNodeHeaders`,
-and the grouped `bunHooks`. This set contains only this project's helpers and
-tools. Customize the package set through overlays, or use individual helpers'
-`override` and packages' `overrideAttrs` methods.
-
-The `packages.${system}` output exposes `bun`, `bunNodeGyp`, `bunNodeHeaders`, and
-real-world examples named `example-<name>`, with no default package.
-
-To use the hooks with `stdenv.mkDerivation`, add the desired hooks from
-`pkgs.bunHooks` to `nativeBuildInputs` and supply `bunDeps`. Each hook propagates
-the Bun package it was configured with.
-The config and install hooks require Bun >= 1.4.4 and check this when selected,
-including when used independently of `buildBunPackage`.
+- [Reference](#reference)
+  - [buildBunPackage](#buildbunpackage)
+    - [Runtime and native toolchain](#runtime-and-native-toolchain)
+    - [Dependency fetching](#dependency-fetching)
+    - [Project selection](#project-selection)
+    - [Build, check, and install](#build-check-and-install)
+    - [Hooks](#hooks)
+  - [fetchBunDeps](#fetchbundeps)
+  - [importBunLock](#importbunlock)
+  - [Setup hooks](#setup-hooks)
+  - [Custom phases](#custom-phases)
+  - [Dependency preparation hooks](#dependency-preparation-hooks)
+  - [Shebang fixup](#shebang-fixup)
+  - [Native toolchain overrides](#native-toolchain-overrides)
+  - [Package-set integration](#package-set-integration)
 
 ## buildBunPackage
 
-These are Nix derivation attributes. With the overlay, the builder is
-`pkgs.buildBunPackage`; without it, use `bunflake.legacyPackages.${system}.buildBunPackage`.
+`buildBunPackage` is the main entry point into this package.
+Access it via `bunflake.legacyPackages.${system}.buildBunPackage` or use the overlay.
+It accepts standard `stdenv.mkDerivation` attributes alongside the Bun-specific
+attributes below. Where applicable, these follow their `npm` counterparts in
+`buildNpmPackage`.
 
 ### Runtime and native toolchain
 
@@ -49,11 +40,14 @@ These are Nix derivation attributes. With the overlay, the builder is
 
 ### Dependency fetching
 
+By default, the builder calls `fetchBunDeps` with `bunDepsHash`. Supplying
+`bunDeps` replaces that fetch step with an existing cache or importer bundle.
+
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bunDepsHash` | `""` | Recursive SHA-256 SRI hash of the dependency cache |
 | `bunDeps` | fetched from `src` | Reuse an existing dependency cache derivation/path |
-| `bunMigrateLockfile` | `false` | Allow migration from another package manager's lockfile when no Bun lockfile is present; also available on `fetchBunDeps` |
+| `bunMigrateLockfile` | `false` | Enable build-side migration replay and, with the default `bunDeps`, fetch-side migration; explicit fetchers must enable migration separately |
 | `bunDepsNativeBuildInputs` | `[]` | Tools/setup hooks explicitly needed for fetching or source preparation, e.g. Git or jq |
 | `bunDepsImpureEnvVars` | `[]` | Names of builder environment variables to expose only to dependency fetching, e.g. registry tokens |
 | `bunFetchFlags` | `[]` | Extra `bun pm fetch` arguments |
@@ -64,7 +58,7 @@ These are Nix derivation attributes. With the overlay, the builder is
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `bunRoot` | `"."` | Lockfile/workspace root relative to the unpacked source root |
-| `bunWorkspace` | `null` | Workspace directory relative to `bunRoot`; selects its build script, bins and manuals |
+| `bunWorkspace` | `null` | Workspace directory relative to `bunRoot`; selects its build script, bins and manuals. Dependencies are fetched for the entire lockfile. |
 
 ### Build, check, and install
 
@@ -87,6 +81,10 @@ These are Nix derivation attributes. With the overlay, the builder is
 
 ### Hooks
 
+Use shell hooks to extend dependency installation, or replace a setup hook to
+change an entire step. The [setup hook inventory](#setup-hooks) describes the
+available implementations.
+
 | Attribute | Default | Purpose |
 | --- | --- | --- |
 | `preBunInstall`, `postBunInstall` | unset | Hooks around offline installation; the pre-hook runs before automatic source/cache preparation |
@@ -95,7 +93,7 @@ These are Nix derivation attributes. With the overlay, the builder is
 
 ## fetchBunDeps
 
-`fetchBunDeps` returns a fixed-output extracted dependency cache. It accepts
+`fetchBunDeps` returns a fixed-output dependency cache as created by Bun. It accepts
 standard `stdenvNoCC.mkDerivation` attributes for source preparation and the
 following fetching attributes:
 
@@ -109,14 +107,21 @@ following fetching attributes:
 | `nativeBuildInputs` | `[]` | Extra fetcher tools; corresponds to `bunDepsNativeBuildInputs` |
 | `impureEnvVars` | Proxy variables | Builder environment variable names allowed during fetching; corresponds to `bunDepsImpureEnvVars` |
 
+The default name above applies to direct calls. When called by
+`buildBunPackage`, the fetcher receives `"${name}-bun-deps"`, where `name` is the
+parent derivation's name (normally `"${pname}-${version}"`).
+
 Override the helper's `bun` argument to select a different Bun package.
 See [dependency fetching](./packaging.md#dependency-fetching) for provider choice
 and migration, and [private registries](./packaging.md#private-registries) for credentials.
 
 ## importBunLock
 
-Experimental. Returns a source bundle for a text `bun.lock`; use it as the
-builder's `bunDeps`. See the [import workflow](./packaging.md#import-a-lockfile-without-bundepshash-experimental).
+`importBunLock` is an experimental alternative to `fetchBunDeps`. It returns a
+source bundle for a text `bun.lock`; use it as the builder's `bunDeps`. There is
+no aggregate hash: remote sources use individual integrity hashes or pinned Git
+commits. Missing pins can be supplied through `fetcherOpts`.
+See the [import workflow](./packaging.md#import-a-lockfile-without-bundepshash-experimental).
 
 | Argument | Default | Purpose |
 | --- | --- | --- |
@@ -128,79 +133,110 @@ builder's `bunDeps`. See the [import workflow](./packaging.md#import-a-lockfile-
 | `scopedRegistries` | `{}` | Registry URLs keyed by scope, e.g. `"@myorg"` |
 | `fetcherOpts` | `{}` | Per-package options for `fetchurl`, `fetchgit`, or `builtins.fetchGit`, keyed by the exact key in `bun.lock`'s `packages` object |
 
-## Flags and custom phases
+## Setup hooks
 
-The builder enables `__structuredAttrs` by default. In custom shell phases,
-list attributes are Bash arrays; use `env` for values that child processes need
-in their environment. Set `__structuredAttrs = false;` for compatibility with
-phases that require the older attribute representation.
+`buildBunPackage` selects these hooks for you. To compose them with
+`stdenv.mkDerivation`, add the required members of `pkgs.bunHooks` to
+`nativeBuildInputs`. Hooks propagate their required tools and supporting hooks.
 
-Only put options accepted by fetch, install, run, test, pack, and prune in `bunFlags`;
-use command-specific attributes for other options. `bunBuildFlags` are arguments
-to the build script, so Bun options belong in `bunFlags`.
+| Hook | Purpose and timing |
+| --- | --- |
+| `bunRuntimeHook` | Supplies Bun and a `node` fallback; registers output shebang fixups for the selected runtime |
+| `bunFetchMigrateHook` | Runs foreign-lockfile migration after source patching in the dependency fetcher and records the result |
+| `bunMigrateHook` | Replays a cached migration after source patching, before dependency configuration in the package build |
+| `bunConfigHook` | Validates an extracted cache and installs dependencies offline after source patching; prepares shebangs, optional ELF fixups, and lifecycle scripts |
+| `bunImportConfigHook` | Adapts a source bundle for installation through `bunConfigHook`; also exposed as `importBunLock.bunConfigHook` |
+| `bunBuildHook` | Supplies the default build phase, running the selected package script |
+| `bunCheckHook` | Supplies the default check phase, running `bun test` or the selected check script |
+| `bunInstallHook` | Supplies the default install phase, pruning dependencies, packing publishable files, and installing wrappers and manuals |
+| `bunNodeGypHook` | Configures node-gyp, Python, and local target headers for native builds |
 
-Hooks accept strings, structured arrays, and shell `*FlagsArray` variables using
-stdenv's `concatTo` convention. Set `__structuredAttrs = true` when hook flag
-arguments contain spaces; ordinary unstructured list attributes become
-space-separated strings. The fetcher uses the same convention: `preInstall`
-can modify `bunFlags` and `bunFetchFlags` or add arguments through
-`bunFlagsArray` and `bunFetchFlagsArray`.
+## Custom phases
 
-The config hook runs in `postPatchHooks`, even with a custom `configurePhase`.
-The build, check, and install hooks supply phases only when no corresponding phase is
-provided and their opt-out is unset. Each hook restores the working directory;
-custom phases must enter `bunRoot` themselves and restore the directory before
+Dependency configuration runs in `postPatchHooks`, even with a custom
+`configurePhase`. A custom `patchPhase` must call `runHook prePatch` and
+`runHook postPatch` to retain it.
+
+The build, check, and install hooks supply phases only when no corresponding
+phase is provided and their opt-out (`dontBunBuild`, `dontBunCheck`, or
+`dontBunInstall`) is unset.
+Custom phases must enter `bunRoot` themselves and restore the directory before
 the next phase. `preBunInstall`, `preBunInstallScripts`, and `postBunInstall`
 run inside `bunRoot`.
 
-Source selection (`src`, `srcs`, `sourceRoot`) and common patch settings
-(`prePatch`, `patchPhase`, `patches`, `postPatch`, `patchFlags`) are forwarded to the dependency
-fetcher, but package `nativeBuildInputs`, `buildInputs`, and `env` are not.
-If a shared `postPatch` needs jq, add it to both `nativeBuildInputs` and
-`bunDepsNativeBuildInputs`; Git dependencies normally need Git only in
-`bunDepsNativeBuildInputs`. For custom unpacking, fetcher environment, or phases,
-supply `bunDeps = fetchBunDeps { ... };` explicitly. Direct fetcher calls use `hash`
-instead of `bunDepsHash`, and `nativeBuildInputs` instead of
-`bunDepsNativeBuildInputs`.
-Custom `patchPhase` implementations must call `runHook prePatch` and
-`runHook postPatch`, as in a normal stdenv build. Foreign-lockfile migration
-uses the patched manifests in both the fetcher and package build. When supplying
-`bunDeps` separately, enable `bunMigrateLockfile` on both `buildBunPackage` and
-`fetchBunDeps`, and keep the foreign lockfiles, `pnpm-workspace.yaml`, and
-`.yarnrc.yml` consistent with the cached migration inputs. For independent hook
-use with a migrated cache, add `bunHooks.bunMigrateHook` alongside
-`bunHooks.bunConfigHook` in `nativeBuildInputs`.
+For the default dependency fetcher, the builder forwards `src`, `srcs`,
+`sourceRoot`, `prePatch`, `patchPhase`, `patches`, `postPatch`, and `patchFlags`.
+It does not forward package `nativeBuildInputs`, `buildInputs`, or `env`.
+See [source preparation](./packaging.md#prepare-sources-for-fetching) for sharing
+patch tools and supplying a custom fetcher.
 
 ## Dependency preparation hooks
 
-`preBunInstallScripts` runs after the initial script-free install and automatic shebang/ELF
-patching, before the forced reinstall. It runs only with `bunRunScripts = true`.
-The Bash array `bunPreparedCachePackages` contains the selected writable cache
-directories. Apply custom dependency edits there: replacing symlinked files in
-the staging `node_modules` tree can leave the cache unchanged, so those edits
-would be lost during the reinstall. Prepare any new executable files added by
-the hook as needed. `postBunInstall` runs after the final install and its fixups.
+The installation hooks expose three points for dependency edits:
+
+| Shell hook | Contract |
+| --- | --- |
+| `preBunInstall` | Runs after cache setup and before project shebang patching and installation; imported archives may not yet be extracted |
+| `preBunInstallScripts` | Runs only with `bunRunScripts = true`, after the initial script-free install and automatic shebang/ELF preparation, before the forced reinstall |
+| `postBunInstall` | Runs after the final dependency install and its shebang/ELF preparation, before the build phase |
+
+In `preBunInstallScripts`, the Bash array `bunPreparedCachePackages` contains the
+selected writable cache directories. Apply dependency edits there so they
+survive the reinstall. Prepare any new
+executable files added by your hook as needed.
 
 ## Shebang fixup
 
-Early shebang patching uses build interpreters. An output fixup hook runs
-`patchShebangs --host --update` to select `runtime` for installed Node shebangs,
-including previously patched store paths and files copied by custom install
-phases. Development outputs use the build environment with `--build --update`.
-A small helper handles absolute commands after `env -S`, which the pinned
-nixpkgs `patchShebangs` cannot repatch. Custom phases must retain the standard
-`fixupPhase` (or perform their own shebang fixup); `dontPatchShebangs` disables
-automatic output patching.
+Dependency preparation patches shebangs for the build environment. During the
+standard `fixupPhase`, we patch shebangs again to potentially replace installed Node shebangs to use `runtime`.
+Development outputs retain build interpreters.
+
+Custom install phases must retain `fixupPhase` or perform their own shebang
+fixup. Set `dontPatchShebangs` to disable automatic output patching. The
+[design notes](./design.md#native-toolchain-implementation) describe how runtime
+selection and interpreter rewriting are implemented.
 
 ## Native toolchain overrides
 
-The standalone helpers are `pkgs.bunNodeGyp` and `pkgs.bunNodeHeaders`.
-To attach custom headers to a Bun target, set its `passthru.nodeHeaders`;
-header derivations must expose `version`. Override `bunHooks`' `bunNodeHeaders`
-argument to change the fallback used by Bun targets without that property, or
-its `python3` argument to use another Python. When using hooks independently
-with another Bun, override their `bun` argument too.
-`buildBunPackage` selects matching hooks automatically through its `bun`,
-`runtime`, and `nodeGypTarget` attributes. Direct hook users can override these
-arguments on `bunHooks`, for example
-`(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunInstallHook`.
+`buildBunPackage` selects matching hooks through its `bun`, `runtime`, and
+`nodeGypTarget` attributes. When using hooks directly, override `bunHooks`
+instead, for example:
+
+```nix
+(pkgs.bunHooks.override { runtime = pkgs.nodejs; }).bunInstallHook
+```
+
+For further toolchain customization, `bunHooks` accepts these overrides:
+
+| Argument/property | Purpose |
+| --- | --- |
+| `bun` | Bun package propagated by the hooks; override when using another Bun directly |
+| `runtime` | Installed runtime; defaults to `bun` |
+| `nodeGypTarget` | Target for addon headers; defaults to `runtime` |
+| `python3` | Python used by node-gyp |
+| `bunNodeHeaders` | Fallback headers for Bun targets without a `nodeHeaders` property |
+
+A Bun target can expose custom headers as `passthru.nodeHeaders`; the header
+derivation must expose `version`. For a Node.js target, headers come from that
+package's source. The standalone tools are `pkgs.bunNodeGyp` and
+`pkgs.bunNodeHeaders`.
+
+## Package-set integration
+
+The helpers can be used through an overlay or the flake's smaller package set.
+Apply `bunflake.overlays.default` to use your own Nixpkgs package set and access
+`pkgs.buildBunPackage`. The overlay replaces `pkgs.bun` only when this
+repository's Bun is newer. Nixpkgs follows `nixos-unstable`, with its revision
+recorded in `flake.lock`.
+
+Without the overlay, `bunflake.legacyPackages.${system}` exposes `bun`,
+`buildBunPackage`, `fetchBunDeps`, `importBunLock`, `bunNodeGyp`, `bunNodeHeaders`,
+and the grouped `bunHooks`. This set contains only this project's helpers and
+tools. Customize the package set through overlays, or use individual helpers'
+`override` and packages' `overrideAttrs` methods.
+
+The `packages.${system}` output exposes `bun`, `bunNodeGyp`, `bunNodeHeaders`, and
+real-world examples named `example-<name>`, with no default package.
+
+For direct `stdenv.mkDerivation` use, supply `bunDeps` and select the
+[setup hooks](#setup-hooks) for the phases you need.

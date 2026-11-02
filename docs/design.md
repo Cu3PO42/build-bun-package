@@ -2,145 +2,190 @@
 
 [README](../README.md) · [Packaging guide](./packaging.md) · [Reference](./reference.md) · [Design](./design.md) · [Contributing](../CONTRIBUTING.md)
 
-These notes explain implementation choices and internal formats. For packaging
+These notes explain the implementation choices behind bunflake. For packaging
 instructions, use the [guide](./packaging.md); for supported interfaces, use the
 [reference](./reference.md).
 
-- [Dependency cache design](#dependency-cache-design)
-- [Installation stages](#installation-stages)
-- [Installed package layout](#installed-package-layout)
-- [Native toolchain implementation](#native-toolchain-implementation)
-- [Imported source types](#imported-source-types)
-- [Imported source installation](#imported-source-installation)
-- [Upstream context](#upstream-context)
+The guiding principle is to provide an equivalent to `buildNpmPackage`, keeping
+its API where possible while accounting for Bun's differences. The central
+constraint is the same: fetch dependencies with network access first, then
+build the application offline. The sections below follow those dependencies
+from fetching through preparation to the installed output.
+
+- [Design notes](#design-notes)
+  - [Dependency cache design](#dependency-cache-design)
+    - [Foreign-lockfile migration](#foreign-lockfile-migration)
+  - [Installation stages](#installation-stages)
+  - [Installed package layout](#installed-package-layout)
+  - [Native toolchain implementation](#native-toolchain-implementation)
+  - [Imported source types](#imported-source-types)
+    - [Pinning and fetchers](#pinning-and-fetchers)
+  - [Imported source installation](#imported-source-installation)
+  - [Upstream context](#upstream-context)
 
 ## Dependency cache design
 
-The cache is a recursively hashed directory rather than a compressed archive,
-avoiding an extra compression/extraction pass and allowing store deduplication.
-Binary caches can compress NAR transfers independently. For `fetchBunDeps`, Bun
-handles lockfile parsing and cache layout, avoiding a separate parser or
-npm-cache mapper.
-Projects with only local dependencies can have an empty dependency cache.
+`fetchBunDeps` uses `bun pm fetch` to populate Bun's install cache without
+installing `node_modules`. The cache is the output of a fixed-output derivation
+(FOD), so Nix verifies its contents against the caller's hash. Bun handles
+lockfile parsing, downloads, and cache naming; the fetcher does not need to
+reimplement them.
 
-Reused caches must have matching format metadata and a byte-for-byte identical
-lockfile. Fixed-output cache paths depend on the cache name and content hash, so a
-Bun upgrade can reuse a cache when its contents stay unchanged. Regenerate the
-hash when those contents change. Changes to this project's cache format require
-updating the format marker and expected hashes.
-For migrated projects, metadata additionally records the foreign lockfiles,
-workspace/Yarn migration configuration, and one JSON patch per changed manifest.
-`jd-diff-patch` generates and applies the patches using its RFC 6902 subset,
-checking old values and rejecting additions that would overwrite existing fields.
-The migration hook validates those inputs and stages all patched manifests before
-writing any of them. The config hook then checks the generated Bun lockfile as usual.
+We keep the cache as a directory. Bun also offers an archive form, but we found
+that the archive depends on the current filesystem and is not deterministic.
+A recursively hashed directory avoids that problem and an extra compression
+and extraction pass.
 
-Fetching covers all platforms in the lockfile, while offline installation
-selects the build host's dependencies. This lets workspaces and platforms share
-a cache, but can be expensive: workspace selection and install filters do not
-reduce downloads.
+The offline consumer needs to know whether a cache belongs to its project.
+We therefore record the exact lockfile and a cache-format marker under
+`.nix-bun`. Before installing, the config hook checks the format and compares
+the lockfile byte for byte. This rejects a stale cache before Bun attempts to
+use it. The marker versions our format.
 
-See [imported source installation](#imported-source-installation) for the
-alternative source-bundle format and resolution rewriting.
+A fixed-output store path depends on its name and content hash. Consequently,
+a Bun upgrade can reuse the same cache if its contents are unchanged. If a Bun upgrade
+changes the cache contents, the hash must be recalculated. Changes to our own
+cache format also require updating its version marker and expected hashes.
 
-The fetcher's source-preparation allowlist prevents package phases and setup
-hooks from running during fetching or introducing dependency cycles.
+Fetching includes all platforms in the lockfile, while offline installation
+selects the build host's dependencies. This lets workspace packages and
+platforms share a cache, at the cost of downloading variants they do not use.
+Workspace selection and install filters therefore do not reduce fetching, a
+tradeoff also made by Nixpkgs' `buildNpmPackage`.
 
 ### Foreign-lockfile migration
 
-The cache contains the generated Bun lockfile and any manifest edits made by
-migration. Migration can consult the registry for missing metadata; its temporary
-registry cache is excluded from the fixed-output result. The separate
-`bunHooks.bunMigrateHook`, added when `bunMigrateLockfile = true`, applies the saved
-result after project patches and before offline installation. Upstream does not need to
-commit a generated Bun lockfile. Manifest edits are saved as JSON patches, preserving
-unrelated build-side changes such as scripts and descriptions. Conflicting edits
-fail with the affected manifest; dependency changes still require a matching cache
-and must pass Bun's frozen-lockfile validation.
+Bun can migrate npm (`package-lock.json`, `npm-shrinkwrap.json`), Yarn
+(`yarn.lock`), and pnpm (`pnpm-lock.yaml`) lockfiles.
+This generates a `bun.lock` as well as changes to `package.json` files.
+Migration may consult the registry for missing metadata, so it must happen in the network-enabled fetcher.
+Repeating it in the offline application build would not work.
 
-In the fetcher, `bunMigrateLockfile = true` adds `bunHooks.bunFetchMigrateHook`,
-which runs migration after project patching, before installation. The install
-phase only fetches from the resulting Bun lockfile. `writableTmpDirAsHomeHook`
-provides a writable home throughout source preparation and fetching.
+Instead, `bunFetchMigrateHook` runs migration after source patching and saves its
+result alongside the cache. This includes the generated Bun lockfile, snapshots
+of the foreign lockfiles and workspace/Yarn configuration, and a JSON patch for
+each changed manifest.
+
+`bunMigrateHook` then validates those input snapshots and replays the result
+after project patching, before `bunConfigHook` installs dependencies. Manifest
+patches preserve unrelated build-side edits, such as changed scripts or
+descriptions. They are generated and applied by `jd-diff-patch` using its
+RFC 6902 subset, which checks old values and rejects additions that would
+overwrite existing fields. All patched manifests are staged before any are
+written, so a conflict does not leave a partially migrated project.
+
+Once replay is complete, the ordinary config hook validates the generated Bun
+lockfile against the cache. This keeps the same frozen-install contract as a
+project with a committed Bun lockfile. `buildBunPackage` pairs the fetch and
+replay hooks when `bunMigrateLockfile = true`; callers composing their own
+fetcher and build must enable both.
 
 ## Installation stages
 
-The store cache is read directly by default. `makeCacheWritable` uses a private
-temporary copy, leaving the shared cache unchanged. `bunRunScripts` also enables
-this copy. Setting `makeCacheWritable` alone leaves scripts disabled.
-The config hook propagates Nixpkgs' `writableTmpDirAsHomeHook` to provide a
-writable temporary home when needed, preserving an already writable `HOME`.
+Dependency preparation must make packages usable in a Nix build before their
+scripts execute. Their shebangs may reference unavailable interpreters, and
+prebuilt Linux binaries may need loader and library paths adjusted. At the
+same time, Bun's `patchedDependencies` must see original package contents so
+its patches still apply. This ordering motivates the installation stages.
 
-With scripts enabled, an initial offline install skips scripts and uses Bun's
-hoisted linker and symlink backend. The final install honors the selected
-linker. This lets Bun apply `patchedDependencies` to original package
-contents first. The symlinked manifests identify the selected cache packages,
-whose shebangs can then be patched without modifying the original inputs to
-dependency patches. When `autoPatchelfHook` is supplied, their ELF binaries are
-prepared at the same point. A forced offline install copies those prepared
-packages and runs trusted scripts. The forced reinstall is necessary: an ordinary second
-install skips dependency scripts. No staging-cache links are shipped.
+The config hook first validates the cache and runs `preBunInstall`. It patches
+executable project files, including workspace and local `file:` helpers that
+may be used during installation.
 
-The [hook contract](./reference.md#dependency-preparation-hooks) defines where custom
-dependency edits belong during this preparation.
+With scripts disabled, the hook can install offline directly from the store
+cache, then patch the installed dependencies before build and check phases.
+`makeCacheWritable` gives Bun a private temporary copy when it needs to modify
+the cache. A writable temporary
+home is supplied through Nixpkgs' `writableTmpDirAsHomeHook` when needed.
 
-The separation of installation and script execution is inspired by
+With `bunRunScripts`, the cache is always copied. Two installation passes
+surround the preparation step:
+
+1. An offline, script-free install uses the hoisted linker and symlink backend.
+   Bun applies dependency patches against pristine contents. Symlinked
+   manifests then identify the cache packages actually selected for this build.
+2. The hook patches those packages' shebangs and, when `autoPatchelfHook` is
+   present, ELF binaries. Foreign platform packages are left untouched.
+   `preBunInstallScripts` can make further edits to the prepared cache packages.
+3. A forced offline install copies the prepared packages and runs trusted
+   scripts.
+
+The final install must be forced because an ordinary second install skips
+dependency scripts. The separation is inspired by
 [bun2nix's lifecycle phases](https://github.com/nix-community/bun2nix/blob/0f2a1f0b6f42cebe3b149bf62d38754c5e0e9729/nix/mk-derivation/hook.sh)
 and Nixpkgs' `npm ci --ignore-scripts` followed by `npm rebuild`. Bun has no
-equivalent rebuild command, so preparation and the final copy install remain
-separate Bun installs.
+equivalent rebuild command, so both passes remain Bun installs.
 
-Executable project files are also patched before installation, including
-workspace and local `file:` dependency helpers. This happens after
-`preBunInstall`, so helpers created by that hook are covered too.
-Executable `bun.lockb` files are excluded: changing their shebang would corrupt
-the binary lockfile's offsets.
-Custom cache edits in `preBunInstall` can still interfere with dependency
-patches that expect original file contents.
+After the final install, shebang and optional ELF preparation also cover newly
+generated binaries. `postBunInstall` then runs before control returns to the
+normal build phases. The [dependency preparation contract](./reference.md#dependency-preparation-hooks)
+specifies where custom edits belong; changing pristine cache files in
+`preBunInstall` can invalidate dependency patches.
 
 ## Installed package layout
 
-Bun's publish-file selection (`files`, ignore rules, and package metadata)
-determines installed package files. The installer uses an archive because Bun
-has no equivalent of npm's machine-readable `pack --json` file list. Dependencies
-come from the pruned installed tree rather than the archive, preserving
-unbundled dependencies and lifecycle-script changes as well as bundled ones.
+The default installer aims to preserve the runnable package while following
+upstream's choice of publishable files. It uses `bun pm pack` for file selection
+because Bun has no equivalent of npm's machine-readable `pack --json` file list.
+Dependencies are copied from the pruned installed tree rather than the archive,
+so unbundled dependencies and lifecycle-script changes are retained too.
 
-The directory structure beneath `$out/lib/node_modules/<root-package-name>`
-preserves workspace and local-package links, including hoisted dependencies and
-the isolated linker's shared `.bun` store. Flattening a workspace or copying
-only the selected member would leave broken links after removing the source.
-This is not a minimal dependency closure: other installed workspaces remain.
-Use a custom `installPhase` for bundles or selected artifacts.
+For a single package, this produces the familiar
+`$out/lib/node_modules/<root-package-name>` layout. Workspaces and local packages
+need more care: copying only the selected member could leave its links pointing
+back into the discarded source tree. The installer therefore preserves the
+surrounding directory structure, including hoisted dependencies and the isolated
+linker's shared `.bun` store. Local package links outside `bunRoot` are rejected
+because that layout cannot preserve them safely.
 
-Local package links outside `bunRoot` are rejected. Packages selected for packing
-need a name and version; a workspace root without a version acts as a container
-with only its manifest and dependencies installed.
+Preserving the tree means other installed workspaces can remain in the output;
+it is not a minimal dependency closure. Packages that only need a bundle or
+selected artifacts should use a custom `installPhase` instead.
+
+Packages selected for packing need a name and version. A workspace root without
+a version acts as a container: only its manifest and dependencies are installed
+at that level.
 
 ## Native toolchain implementation
 
-The optional node-gyp toolchain uses pinned tools and local headers to avoid
-automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,
-`npm_config_target`, and `npm_config_python`; Bun's lifecycle trust rules still
-apply. Its launcher uses `node` from `PATH`, independently of `nodeGypTarget`.
-Darwin uses cctools and Nixpkgs' deterministic Xcode-version fallback.
-Bun supports Node-API addons; V8-specific addons may require changes.
+Native addons introduce three separate choices: the package manager, the
+interpreter running build tools, and the runtime loading the compiled addon.
+Bun remains the package manager. If `node` is available
+on `PATH`, it is used. Otherwise Bun is implicitly symlinked as `node`. node-gyp's launcher
+uses that command, while `nodeGypTarget` independently selects its headers.
+
+The optional toolchain supplies pinned node-gyp, Python, and local headers to
+avoid automatic downloads. It sets `npm_config_node_gyp`, `npm_config_nodedir`,
+`npm_config_target`, and `npm_config_python`. On Darwin it also supplies cctools
+and uses Nixpkgs' deterministic Xcode-version fallback. Bun's lifecycle trust
+rules still determine which dependency scripts execute.
 
 Standalone node-gyp is itself built with `buildBunPackage` and a committed
-lockfile, keeping dependency resolution in Bun instead of maintaining a custom
-archive list and installer. Our Bun package exposes pinned headers matching its
-reported `process.versions.node`; a flake check verifies this default pairing.
-Consumer builds warn about differing versions rather than rejecting potentially
-compatible Node-API addons.
+lockfile, keeping dependency resolution in Bun. Our Bun package exposes headers
+matching its reported `process.versions.node`, and a flake check verifies that
+pairing. Consumer builds warn about differing header versions rather than
+rejecting them: Node-API addons may remain compatible across versions, while
+V8-specific addons may need changes regardless of matching version numbers.
+
+Interpreter selection also needs a final output step. Early shebang patching
+uses build interpreters; the runtime hook later runs
+`patchShebangs --host --update` so installed Node shebangs use `runtime`.
+Development outputs use `--build --update`. A helper handles absolute commands
+after `env -S`, which the pinned Nixpkgs `patchShebangs` cannot repatch. This is
+why custom installation must retain the standard fixup phase or implement its
+own interpreter rewriting.
 
 ## Imported source types
 
-This implementation targets Bun 1.4.4. The source inventory comes from Bun's
+`importBunLock` takes a different approach to fetching: Nix reads the text
+lockfile and fetches each remote source separately. It therefore needs to
+recognize Bun's serialized source types. The implementation targets the Bun
+1.4.4 format, using Bun's
 [text-lockfile parser](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/lockfile/bun.lock.rs),
 [resolution parser](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/resolution.rs),
 and [dependency specifier parser](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/dependency.rs).
-The importer consumes normalized `bun.lock` resolutions, rather than parsing
-every specifier accepted by `package.json`.
+The importer consumes these normalized `bun.lock` resolutions; it does not
+need to parse every specifier accepted by `package.json`.
 
 `INFO` below is Bun's dependency, platform, script, and bin metadata object.
 Optional integrity fields are shown in parentheses.
@@ -183,7 +228,7 @@ Generic Git uses the full commit in the `.bun-tag` tuple field, rather than a
 branch or tag from the manifest. A legacy row can be pinned explicitly with
 `fetcherOpts.<lock-key>.rev`. Without a `hash`, the importer uses
 `builtins.fetchGit` with `allRefs = true`, allowing commits outside the default
-branch. This is a locked evaluation-time fetch, not import from derivation.
+branch. This is a locked evaluation-time fetch.
 With a `hash`, the importer uses Nixpkgs' `fetchgit`, keeping the download in a
 normal fetcher build. Options follow the chosen fetcher's interface, including
 its own submodule and authentication options.
@@ -201,51 +246,52 @@ fixtures exercise this case with locally compiled tarballs.
 
 ## Imported source installation
 
-The original importer used one integrity-pinned `fetchurl` per archive, served
-the files over loopback, and called `bun pm fetch` in a copied source tree.
-That delegated cache naming to Bun, but required all-platform extraction, a
-server, and Darwin's local-network sandbox allowance.
+Fetching archives individually leaves an installation problem: Bun normally
+expects its own extracted cache, with names derived from package resolutions.
+Reimplementing all that naming would duplicate Bun internals. Instead, the
+importer uses Bun's support for local archive paths in text lockfiles under
+`--offline --frozen-lockfile`.
 
-Bun also accepts local archive paths in text lockfiles under
-`--offline --frozen-lockfile`. The new source bundle contains fetched archive
-and checkout links plus original-lockfile metadata. It contains no extracted
-package tree and needs no Bun executable to assemble. Installation extracts
-only the packages selected for the current platform and caller's install flags.
-Fetching still covers the complete lockfile, so platform variants remain shared
-Nix fetcher inputs.
+The source bundle contains links to fetched archives and checkouts, plus the
+original lockfile metadata. It needs no Bun executable to assemble and contains
+no extracted package tree. During installation, `bunImportConfigHook` redirects
+remote archive resolutions to those local paths. Bun then extracts only the
+packages selected for the current platform and install flags, although fetching
+still covers the complete lockfile.
 
-`buildBunPackage` selects the import config hook automatically. Standalone users
-add `importBunLock.bunConfigHook` to `nativeBuildInputs`. The metadata identifies
-the format as `source-bundle` for `importBunLock` and `extracted-cache` for
-`fetchBunDeps`. Both start at format version 1 and can evolve
-independently. The format and version are stored in `.nix-bun/format` and
-`.nix-bun/format-version`, respectively.
-The ordinary cache hook rejects source bundles supplied without the import hook.
+Both dependency providers record their format in `.nix-bun/format` and version
+in `.nix-bun/format-version`. `fetchBunDeps` uses `extracted-cache` and
+`importBunLock` uses `source-bundle`, each currently at version 1. These formats
+can evolve independently. `buildBunPackage` selects the import hook from the
+bundle's passthru metadata; the ordinary cache hook rejects a source bundle
+supplied without that hook.
 
-The shared config hook still validates the original lockfile byte for byte,
-checks frozen manifest consistency, and handles shebangs, ELF libraries,
-trusted lifecycle scripts, both linkers, and dependency patches. The importer
-changes archive resolution locations and the corresponding patch keys in the
-lockfile/root manifest. It retains dependency edges, version constraints,
-platform metadata, and trust lists. The rewritten resolutions stay in place
-through build and prune; explicitly publishing a rewritten lockfile or patch
-metadata can retain archive store references. Use `fetchBunDeps` when original
-resolution identities are required throughout the build.
+The import hook extends the shared configuration flow. It first validates the
+original lockfile byte for byte, then rewrites archive locations and the
+corresponding dependency-patch keys in the lockfile and root manifest. Dependency
+edges, manifest version constraints, platform metadata, and trust lists remain
+intact. The ordinary install flow still handles frozen manifest validation,
+shebangs, ELF preparation, lifecycle scripts, and both linkers.
 
-Git is a small exception to direct archive installation. Its fetched checkout
-is copied into the private cache as `@G@<locked-commit>` with a matching
-`.bun-tag`, following Bun 1.4.4's
+The tradeoff is that rewritten resolutions remain in the build tree through
+pruning. A build that publishes the rewritten lockfile or patch metadata may
+retain archive store references. `fetchBunDeps` is the appropriate provider
+when original resolution identities must be preserved throughout the build.
+
+Git requires a separate path because a checkout is not an archive. The import
+hook copies each fetched checkout into the private cache as
+`@G@<locked-commit>` with a matching `.bun-tag`, following Bun 1.4.4's
 [Git cache lookup](https://github.com/oven-sh/bun/blob/bun-v1.4.4/src/install/PackageManager/PackageManagerDirectories.rs).
-It retains the Git resolution and checkout metadata without inventing an archive
-integrity hash or implementing registry/prerelease cache naming. These native
-Git names are an internal interface, covered by integration tests. The fetched
-checkout retains its symlinks; Bun's `copyfile` installation backend omits package
-symlinks, matching the existing builder's native Git behavior.
+This retains the Git resolution without inventing an archive integrity hash.
+These native Git cache names are an internal interface covered by integration
+tests. Fetched checkouts retain symlinks, but Bun's `copyfile` installation
+backend omits package symlinks, as it does with the ordinary cache provider.
 
-The private cache is always writable. `makeCacheWritable` is unnecessary for
-this provider, and `preBunInstall` cannot assume archive packages have already
-been extracted. The source-bundle output itself stays unchanged by preparation,
-patching, and lifecycle scripts.
+Because extraction and Git cache seeding happen during the build, the import
+hook always creates a private writable cache. The source bundle stays unchanged
+by preparation and scripts. This also means `preBunInstall` cannot assume archive
+packages have already been extracted; edits that need those packages belong in
+`preBunInstallScripts` or `postBunInstall`.
 
 ## Upstream context
 

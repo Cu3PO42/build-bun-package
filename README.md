@@ -17,10 +17,15 @@ with an interface modeled on Nixpkgs' `buildNpmPackage`.
 
 ## Status
 
-`buildBunPackage` is mostly feature-complete and has been used to package real-world applications.
-The most mature path uses a FOD to fetch all dependencies using a Bun lockfile, but migration from NPM, Yarn, and PNPM is also supported experimentally.
+`buildBunPackage` is mostly feature-complete and has been used to package
+real-world applications. Its most mature workflow fetches dependencies from a
+Bun lockfile in a fixed-output derivation, then installs them offline during the
+application build. Migration from npm, Yarn, and pnpm lockfiles is also supported
+experimentally.
 
-`importBunLock` doesn't need a fixed hash and can support overrides, but is also experimental.
+The experimental `importBunLock` offers an alternative: it fetches each dependency
+individually using its locked hash or commit, allowing fetcher overrides without
+an aggregate dependency hash.
 
 The project is young and its public interface may change between updates.
 It is designed with possible upstreaming to Nixpkgs in mind, but there is
@@ -29,7 +34,7 @@ currently no commitment to long-term maintenance.
 Bun 1.4.4 or newer is required. Supported systems are `aarch64-darwin`,
 `aarch64-linux`, and `x86_64-linux`; cross compilation is not supported.
 
-Since Bun 1.4.4 is the newest version at time of writing, we do not yet know if future updates may change formats and invalidate hashes.
+Since Bun 1.4.4 is the newest version (and bundled in this Flake) at time of writing, we do not yet know if future updates may change cache formats and invalidate hashes.
 
 ## AI disclosure
 
@@ -87,8 +92,10 @@ add `dontBunBuild = true;`.
 
 ## Documentation
 
-The [packaging guide](./docs/packaging.md) is a more comprehensive introduction to building applications with Bun and includes examples.
-The [reference](./docs/reference.md) defines the complete public interfaces and contracts. Start with the topic you need:
+The [packaging guide](./docs/packaging.md) builds on the quick start with
+explanations and examples for more involved packages. The
+[reference](./docs/reference.md) defines public interfaces and contracts. Start
+with the topic you need:
 
 | Task | Documentation |
 | --- | --- |
@@ -104,7 +111,8 @@ The [reference](./docs/reference.md) defines the complete public interfaces and 
 
 ## Examples
 
-Real-world packages live in [`integration/`](./integration). They are derived from upstream nixpkgs, but simplified using our build support. The
+Real-world packages live in [`integration/`](./integration). They are derived
+from Nixpkgs packages and simplified using our build support. The
 [swagger-typescript-api example](./integration/swagger-typescript-api.nix) uses
 the default build and install hooks; [opencode](./integration/opencode.nix)
 shows workspace filtering, dependency patches, and custom installation.

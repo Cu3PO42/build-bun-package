@@ -2,13 +2,26 @@
 
 [README](./README.md) · [Packaging guide](./docs/packaging.md) · [Reference](./docs/reference.md) · [Design](./docs/design.md)
 
-The builder and hooks are intended for eventual inclusion in Nixpkgs. Follow
+The builder and hooks are designed with eventual inclusion in Nixpkgs in mind.
+To keep that path open, follow
 [Nixpkgs' contributing guidelines](https://github.com/NixOS/nixpkgs/blob/master/CONTRIBUTING.md)
 and [package conventions](https://github.com/NixOS/nixpkgs/blob/master/pkgs/README.md).
 Keep dependencies explicit through `callPackage`, use `lib.extendMkDerivation`
 for the builder, and keep the implementation independent of the flake wrapper.
 
 ## Format and run checks
+
+Start with formatting and evaluation, then build the checks for your platform:
+
+```sh
+nix fmt
+nix flake check --all-systems --no-build
+nix flake check --keep-going --print-build-logs
+```
+
+The evaluation step covers all supported systems; the last command builds checks
+only for the current system. Before submitting changes, run the applicable
+builds on each supported platform, locally or through native remote builders.
 
 Run `nix fmt` to format Nix with nixfmt, shell with shfmt, and
 JavaScript/TypeScript with Bun. JavaScript/TypeScript test fixtures are
@@ -17,32 +30,22 @@ The shared configuration in [`treefmt.nix`](./treefmt.nix) applies to both
 formatting and formatting checks. Run `nix fmt -- --ci` to format and fail if any
 files change.
 
-Run these commands before submitting changes:
+Dependency checks rely on reproducible fixture contents and offline builds.
+Use sandboxing when checking offline behavior, and investigate unexpected
+fixed-output hash mismatches before changing their expected values. Fixture
+bytes contribute to hashes, so formatters must leave them unchanged.
 
-```sh
-nix fmt
-nix flake check --all-systems --no-build
-nix flake check --keep-going --print-build-logs
-```
-
-The last command builds checks for the current system. Use sandboxed builds
-when checking offline behavior; do not change fixed-output
-hashes merely to silence unexpected mismatches. Fixture bytes contribute to
-hashes, so formatters must leave them unchanged.
-
-The checks include nixfmt, nixf-diagnose with Nixpkgs' enabled rules,
-EditorConfig, ShellCheck, actionlint, yamlfmt, zizmor, Nix examples in Markdown,
-and parsing every Nix file with stable
-Nix, latest Nix, and Lix. They also cover builder overrides, imported lockfiles,
-offline installation, lifecycle scripts, workspaces, and native dependencies.
+Checks cover both repository conventions and package behavior. The former
+include formatting, Nix diagnostics and parsing, shell and workflow linting,
+and Nix examples in Markdown. The latter exercise the builder, dependency
+providers, and installed applications; the [coverage notes](#verification-boundaries)
+below explain what those tests establish.
 Nixpkgs' broader formatter configuration additionally checks JavaScript outside
 `pkgs/` with Biome and keep-sorted markers. This repository uses Bun's formatter
 for JavaScript and TypeScript. Run Nixpkgs' formatter after transplanting files.
 
-Run `nix flake check` on each supported system. `nix flake check --all-systems`
-evaluates other systems but does not build their checks on the current host.
-To run only the formatting, ShellCheck, and actionlint checks, substitute your
-system in:
+For a documentation or lint-only change, you can select individual checks.
+For example, substitute your system in:
 
 ```sh
 nix build --no-link .#checks.x86_64-linux.formatting \
@@ -91,50 +94,56 @@ regenerate the adjacent lockfile with Bun, and recalculate its `bunDepsHash`.
 
 ## Verification boundaries
 
-[`tests/`](./tests) covers caches, lifecycle scripts, shebang-changing dependency
-patches, early ELF fixups, native builds with Bun and Node.js, check hooks and
-test failures, flag handling, workspaces with hoisted and isolated linkers,
-pruning, and installed runtime behavior. Fresh-fetch checks use
-`testers.invalidateFetcherByDrvHash` so changed fetcher inputs cannot pass by
-reusing a cached fixed-output result.
+The tests distinguish successful evaluation from a working installed package.
+[`tests/`](./tests) exercises cache validation, offline installation, lifecycle
+scripts, both workspace linkers, pruning, and runtime behavior after the source
+has been removed. Native checks cover Bun and Node.js, shebang-changing
+patches, and early Linux ELF preparation.
 
-`migration-real-*` checks use complete npm, npm shrinkwrap, pnpm, Yarn Classic,
-and Yarn Berry dependency snapshots from real projects, including nixpkgs
+Cache checks use `testers.invalidateFetcherByDrvHash` where a fresh fetch is
+required. This prevents changed fetcher inputs from passing solely because Nix
+reused an existing fixed-output result.
+
+### Lockfiles and migration
+
+Source checks cover text/JSONC and binary Bun lockfiles, catalogs, local
+`file:`/`link:` dependencies, Git aliases, public GitHub and HTTP sources, and a
+non-default registry. Workspace checks include a sibling whose CLI has not yet
+been built.
+
+The `migration-real-*` checks use complete dependency snapshots from real npm,
+npm shrinkwrap, pnpm, Yarn Classic, and Yarn Berry projects, including Nixpkgs
 packages. They verify offline installation, nested version resolution, optional
 dependencies, executable links, and module behavior. Their combined dependency
-caches are limited to 32 MiB.
-See the [fixture provenance and update notes](./tests/fixtures/migration-real/README.md).
+caches are limited to 32 MiB. See the
+[fixture provenance and update notes](./tests/fixtures/migration-real/README.md)
+before changing these inputs.
 
-Source coverage includes text/JSONC and binary lockfiles, catalogs, duplicate
-Git aliases, local `file:` and `link:` dependencies, foreign optional dependencies,
-a public GitHub dependency, an HTTP tarball, and a non-default registry. Workspace
-checks also cover consuming a sibling whose CLI has not been built. The
-authenticated mock registry checks credential rejection, token leakage, and offline
-installation after removing credentials and stopping the server. It does not
-configure daemon credentials.
-Other Git protocols and private Git authentication remain untested.
+### Importer sources
 
-`import-lock-*` checks repeat builds with imported caches, including custom and
-scoped registries, aliases, prereleases, direct tarballs, and both linkers.
-Run `bun tests/test-jsonc.ts` for a differential parser test against
-`Bun.JSONC.parse`: 1,009 valid inputs and 17 malformed inputs, with IFD disabled.
-
-Local-archive checks include compressed and uncompressed archives, legacy rows
-without integrity, self-references, and installed links after deleting the source.
-Linux importer checks also cover ELF preparation and lifecycle scripts with both
-linkers. They pass a separately available `lockFile` for a generated source,
-avoiding IFD even when that source contains platform-specific compiled tarballs.
-
-### Importer source coverage
-
-The `import-lock-*` checks cover registry/scoped URLs, aliases, prereleases,
-direct and legacy HTTP archives, pinned and legacy GitHub archives, real Git
-checkouts, Git fetcher selection, executable bits, checkout symlinks, native Git
-tags, local archive formats, root references, workspaces, catalogs, patches,
-trusted and disabled lifecycle scripts, and source deletion after installation.
-Linux checks also exercise ELF preparation and a foreign optional binary with
-both hoisted and isolated linkers. All checks run with sandboxing enabled and
+The `import-lock-*` checks exercise registry and scoped URLs, aliases,
+prereleases, HTTP and GitHub archives, Git checkouts and fetcher selection,
+local archives, root references, workspaces, catalogs, dependency patches, and
+lifecycle-script settings. Checkout cases include executable bits, symlinks,
+and native Git cache tags. All importer checks run with sandboxing enabled and
 import from derivation disabled.
+
+Local archive cases include compressed and uncompressed formats and legacy
+entries without integrity hashes. Linux cases also exercise ELF preparation
+and foreign optional binaries with both linkers. Generated-source fixtures
+supply an independently available `lockFile`, demonstrating that evaluation
+does not need to build the source first.
+
+The JSONC parser also has a differential test against `Bun.JSONC.parse`. Run
+`bun tests/test-jsonc.ts` to compare 1,009 valid inputs and 17 malformed inputs
+with import from derivation disabled.
+
+### Authentication boundaries
+
+The authenticated mock registry tests credential rejection, token leakage, and
+offline installation after credentials have been removed and the server stopped.
+It does not configure daemon credentials. Private hosted Git authentication
+and Git transports beyond those represented by local tests remain unverified.
 
 ## Implementation
 
@@ -143,8 +152,10 @@ source normalization, and implementation tradeoffs.
 
 ## Preparing an upstream contribution
 
-These steps require an actual Nixpkgs checkout and cannot be certified by this
-repository's CI:
+Passing this repository's checks establishes that the standalone helpers work
+within the tested boundaries. An upstream contribution also needs integration
+with Nixpkgs' package layout, tests, and review process. The steps below require
+an actual Nixpkgs checkout:
 
 - Register the helpers through Nixpkgs' package set. Place build infrastructure
   under `pkgs/build-support`; reconcile the Bun and node-gyp changes with the
